@@ -1,0 +1,2 @@
+# No third-party dependencies are required; Python 3.10+ standard library only.
+# Verified with CPython 3.13.7. The virtual environment's bundled pip is not a project dependency.

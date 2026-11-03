@@ -14,6 +14,11 @@ venv/
 env/
 ENV/
 
+# Downloaded datasets and local caches
+.cache/
+data/
+datasets/
+
 # Packaging and build output
 build/
 dist/
@@ -42,6 +47,7 @@ models/
 outputs/
 results/**
 !results/.gitkeep
+!results/tofu_forget01_inspection.json
 
 # Common model weight files
 *.bin

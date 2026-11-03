@@ -1,0 +1,23 @@
+{
+  "dataset": "locuslab/TOFU",
+  "file_sha256": "d0047332bd27a489c552659831f4ffff080e2b9b6e063c7c951ac4de9d494a63",
+  "record_count": 40,
+  "record_text_included": false,
+  "representative_examples_displayed": 3,
+  "required_fields": [
+    "question",
+    "answer"
+  ],
+  "required_fields_valid": true,
+  "revision": "324592d84ae4f482ac7249b9285c2ecdb53e3a68",
+  "schema": {
+    "answer": [
+      "str"
+    ],
+    "question": [
+      "str"
+    ]
+  },
+  "source": "https://huggingface.co/datasets/locuslab/TOFU/resolve/324592d84ae4f482ac7249b9285c2ecdb53e3a68/forget01.json?download=true",
+  "split": "forget01"
+}
