@@ -1,13 +1,13 @@
 # Machine-unlearning compute feasibility
 
 **Assessment date:** 2026-11-03
-**Scope:** Read-only inspection of this Mac and the official OpenUnlearning setup. No dependencies or models were installed or downloaded, and no experiment was run.
+**Scope:** Read-only inspection of this Mac and OpenUnlearning, plus a separate project-local environment for a no-download inference smoke test. Installed only the pinned PyTorch and Transformers stack in `.venv-ml`; global Python and the existing TOFU-inspection `.venv` were left untouched. No checkpoint or dataset was downloaded, and no unlearning or benchmark experiment was run.
 
 ## Decision
 
-This Mac has enough unified memory and disk space to store and potentially fine-tune a 1B-parameter TOFU model in a suitably adapted local setup. It is **not ready to run that training on its GPU today**: the installed PyTorch build includes MPS support, but reports MPS unavailable. The upstream OpenUnlearning recipe also assumes CUDA-oriented attention, optimizer, and distributed-training components.
+This Mac can run PyTorch and a tiny Transformers model on its MPS GPU when the process has normal access to Metal. The same checks run inside the restricted command sandbox report MPS unavailable; the sandboxed process sees zero devices. Outside the sandbox, both project-local Python 3.11 and Anaconda PyTorch 2.9.1 see one MPS device. The root cause is sandbox GPU isolation, not a Mac, macOS, Python-architecture, or Conda conflict.
 
-For an unmodified, comparable OpenUnlearning GradDiff run, use a Linux cloud instance with NVIDIA GPUs. The project's reported reproduction used two 48 GB L40S GPUs with DeepSpeed ZeRO-3. A local pilot may be feasible after MPS is made available and the CUDA-specific settings are replaced, but it would be a modified run and its results would not exactly match the reported setup. CPU-only execution is technically possible in principle, but not a practical choice for repeated full-model training.
+The local environment is ready for small-model inference and synthetic MPS checks. This does not establish that the full OpenUnlearning GradDiff recipe runs on Mac: its configured attention backend and reported distributed setup target CUDA/Linux. For an unmodified, comparable run, use a Linux cloud instance with NVIDIA GPUs; the project's reported reproduction used two 48 GB L40S GPUs with DeepSpeed ZeRO-3. Full-parameter training feasibility on this Mac remains untested.
 
 ## Mac and Python inventory
 
@@ -15,6 +15,7 @@ For an unmodified, comparable OpenUnlearning GradDiff run, use a Linux cloud ins
 |---|---|
 | Mac | MacBook Pro, model identifier Mac16,8 |
 | Chip | Apple M4 Pro |
+| GPU | 16-core built-in M4 Pro GPU; macOS reports Metal supported |
 | Memory | 48 GB unified memory |
 | macOS | 26.6.2, build 25G83 |
 | Architecture | arm64 |
@@ -30,7 +31,32 @@ Python runtimes found:
 | User-local, `~/.local/bin/python3.11` | 3.11.18 | No PyTorch, Transformers, or MLX detected |
 | Apple Command Line Tools, `/usr/bin/python3` | 3.9.6 | No PyTorch, Transformers, or MLX detected |
 
-The active Anaconda interpreter is arm64. Its installed PyTorch reports **MPS built: yes; MPS available: no; CUDA available: no**. Transformers imports successfully. MLX is not installed in the checked Python environments. The repository's own `requirements.txt` remains standard-library-only; these machine-wide packages are not project dependencies.
+The active Anaconda interpreter is arm64 and has PyTorch 2.9.1 and Transformers 4.57.1. MLX is not installed in the checked Python environments. The repository's original `requirements.txt` remains standard-library-only; the new machine-learning smoke dependencies are kept separately in `requirements-ml.txt` and its lock file.
+
+## Verified project-local smoke environment
+
+Python 3.11.18 was available at `/Users/afrinhossain/.local/bin/python3.11`; Python 3.12 was not found on `PATH`, in the standard Python framework, Homebrew, Conda, or user-local locations, and pyenv is not installed. The existing `.venv` is CPython 3.13.7 with pip only and remains the TOFU-inspection environment. A separate ignored `.venv-ml` was created with Python 3.11.18. Direct dependencies are pinned to PyTorch 2.9.1 and Transformers 4.57.1 in [`requirements-ml.txt`](../requirements-ml.txt); [`requirements-ml.lock`](../requirements-ml.lock) records the complete resolved package set, including transitive versions and the pip 26.2.2 / setuptools 79.0.1 bootstrap tools. `pip check` reported no broken requirements.
+
+The repeatable diagnostic is [`scripts/diagnose_ml_environment.py`](../scripts/diagnose_ml_environment.py). It reports Python, macOS, MPS/CUDA support and selected environment variables; chooses MPS when PyTorch says it is available, otherwise CPU; then runs a 4×4 synthetic tensor operation and inference with a randomly initialized one-layer GPT-2 model. It does not load weights or access Hugging Face.
+
+| Test context | MPS result | Smoke result |
+|---|---|---|
+| Restricted command sandbox, Anaconda and `.venv-ml` | Built `true`; macOS 15+ check `true`; low-level runtime probe `false`; device count `0`; available `false` | `.venv-ml` used CPU; tensor computation and random GPT-2 inference passed; logits shape `(1, 4, 64)` |
+| Outside the restricted sandbox, same `.venv-ml` and a clean process environment | Built `true`; macOS 15+ check `true`; low-level runtime probe `true`; device count `1`; available `true` | MPS tensor computation and random GPT-2 inference passed; logits shape `(1, 4, 64)` |
+| Outside the restricted sandbox, existing Anaconda Python 3.13.5 | Built `true`; MPS available `true`; device count `1` | MPS availability check passed |
+
+The sandbox process had `CONDA_DEFAULT_ENV=base` and `CONDA_PREFIX=/opt/anaconda3`; `PYTHONHOME`, `PYTHONPATH`, PyTorch MPS overrides, and DYLD library overrides were unset. Clearing the Conda variables and other overrides did not make MPS visible inside the sandbox. Outside the sandbox, MPS was available in both the new venv and Anaconda, ruling out the Anaconda package and these environment variables as the cause. No system settings or global Python installations were changed. To use MPS, run the diagnostic from a normal Terminal process with `.venv-ml/bin/python`; the restricted sandbox cannot access the Metal device and will correctly fall back to CPU.
+
+Recreate the local environment from the repository root with:
+
+```sh
+python3.11 -m venv .venv-ml
+./.venv-ml/bin/python -m pip install --no-cache-dir -r requirements-ml.lock
+env -u CONDA_PREFIX -u CONDA_DEFAULT_ENV -u PYTHONHOME -u PYTHONPATH \
+  ./.venv-ml/bin/python scripts/diagnose_ml_environment.py
+```
+
+This lightweight environment is for device and inference smoke checks only. It is not the full OpenUnlearning dependency set, whose current requirements pin Transformers 5.5.4.
 
 ## OpenUnlearning, TOFU, and GradDiff
 
@@ -46,7 +72,7 @@ OpenUnlearning supports [GradDiff](https://raw.githubusercontent.com/locuslab/op
 
 | Area | Assessment |
 |---|---|
-| PyTorch on the Mac GPU | PyTorch's [MPS documentation](https://docs.pytorch.org/docs/main/notes/mps.html) distinguishes a build compiled with MPS from MPS being available at runtime. This installation reports the former only. Until runtime availability is resolved, local training would fall back to CPU. |
+| PyTorch on the Mac GPU | PyTorch's [MPS documentation](https://docs.pytorch.org/docs/main/notes/mps.html) distinguishes a build compiled with MPS from MPS being available at runtime. Both checked PyTorch 2.9.1 environments report MPS available outside the restricted sandbox; inside it, the MPS runtime probe is false and the device count is zero. |
 | CUDA-specific pieces | The configured `flash_attention_2` path and example FlashAttention wheel target CUDA/Linux and do not run as-is on Apple MPS. The reported distributed recipe uses Accelerate with DeepSpeed ZeRO-3, for which OpenUnlearning documents no MPS setup. The requirements pin bitsandbytes 0.49.2; [recent bitsandbytes releases have some Apple Silicon support](https://github.com/bitsandbytes-foundation/bitsandbytes/releases), but do not assume the pinned `paged_adamw_32bit` path works on this Mac without checking it. A local port would need MPS-compatible attention and optimizer choices, smaller microbatches, and likely gradient checkpointing. |
 | MLX | Not present, and it is a separate Apple Silicon framework rather than a drop-in device backend for OpenUnlearning's Hugging Face Trainer workflow. |
 | Memory | The 2.47 GB BF16 weight file is only the inference/checkpoint footprint. A rough full-training floor is about 15 GB for weights, gradients, and two FP32 Adam moments for roughly 1.2B parameters, before activations, temporary tensors, evaluation, and macOS. Plan for the process to use tens of GB; actual peak depends heavily on batch size, sequence length, attention backend, and checkpointing. The upstream default microbatch of 8 without checkpointing is not a prudent first MPS attempt on 48 GB shared with macOS. |
@@ -71,4 +97,4 @@ CUDA_VISIBLE_DEVICES=0,1 accelerate launch \
   task_name=llama32_1b_tofu_forget10_graddiff
 ```
 
-The model path in the default TOFU config already points to `open-unlearning/tofu_Llama-3.2-1B-Instruct_full`. The cloud run will still need to download that 2.47 GB checkpoint, the TOFU split data, and the evaluation logs (the framework documents `python setup_data.py --eval` for fetching these logs); none were downloaded for this assessment. A local MPS pilot can be considered later, after a minimal MPS availability check succeeds and the CUDA-specific settings have been replaced. This assessment does not change the repository's currently stated GA study plan or claim that any model has been unlearned.
+The model path in the default TOFU config already points to `open-unlearning/tofu_Llama-3.2-1B-Instruct_full`. The cloud run will still need to download that 2.47 GB checkpoint, the TOFU split data, and the evaluation logs (the framework documents `python setup_data.py --eval` for fetching these logs); none were downloaded for this assessment. A local MPS pilot can be considered later after adapting the CUDA-specific framework settings and separately measuring training memory. This assessment does not change the repository's currently stated GA study plan or claim that any model has been unlearned.

@@ -1,9 +1,9 @@
 # UnlearnGuard: Privacy Leakage After Machine Unlearning
 
 **Project:** `UnlearnGuard-Privacy-Leakage-Research`  
-**Status:** TOFU dataset inspection pipeline implemented; model unlearning experiments remain planned.
+**Status:** TOFU dataset inspection pipeline and project-local ML smoke environment implemented; model unlearning experiments remain planned.
 
-> **Research status:** The repository now downloads and inspects the official TOFU `forget01` dataset split. No model has been trained, fine-tuned, evaluated, or unlearned here, and no unlearning results or claims are reported.
+> **Research status:** The repository inspects the official TOFU `forget01` dataset split. No TOFU checkpoint has been fine-tuned, benchmark-evaluated, or unlearned here, and no unlearning results or claims are reported. A tiny randomly initialized model is used only by the local environment smoke diagnostic.
 
 ## Motivation
 
@@ -23,7 +23,7 @@ The planned study will address:
 
 ## Planned Methodology
 
-Every item in this section is **planned work**. No models have been trained or evaluated in this repository.
+Every item in this section is **planned work**. No TOFU model has been trained or benchmark-evaluated in this repository.
 
 1. **Pin the benchmark and model.** Use the TOFU data and its designated forget/retain protocol. Before running experiments, select and record a compatible TOFU-finetuned checkpoint and immutable dataset/model revisions. Publish configuration files, data provenance, and checksums where licensing permits.
 2. **Run one unlearning technique.** Apply gradient ascent to the forget examples using a documented optimizer, learning rate, batch size, number of steps, and random seed. Keep the method fixed across comparisons; record each configuration and checkpoint identifier.
@@ -50,9 +50,22 @@ python -m src.inspect_tofu
 
 The `requirements.txt` file documents that the pipeline and tests use only the Python standard library. On the first inspection, the script downloads the pinned `forget01.json` file into `.cache/tofu/` and verifies its SHA-256 digest before loading it. The cache, virtual environment, and dataset files are excluded from Git. The summary records schema and validation metadata without copying question or answer text. See [docs/data.md](docs/data.md) for dataset provenance, attribution, and the limits of this inspection.
 
-See [docs/compute_feasibility.md](docs/compute_feasibility.md) for a read-only assessment of local hardware and Python support for machine-unlearning experiments, OpenUnlearning compatibility, and a recommended next experiment.
+See [docs/compute_feasibility.md](docs/compute_feasibility.md) for the verified local ML environment, MPS sandbox diagnosis, OpenUnlearning compatibility, and a recommended next experiment.
 
 This pipeline only reads the benchmark data. It does not load a model or perform any training, fine-tuning, evaluation, or machine unlearning. The inspected records are not evidence that any model has forgotten anything.
+
+## Local ML Environment Smoke Test
+
+The project-local `.venv-ml` environment uses Python 3.11.18, PyTorch 2.9.1, and Transformers 4.57.1. It is separate from the existing TOFU-inspection `.venv` and is ignored by Git. The repeatable diagnostic runs a synthetic tensor operation and inference with a randomly initialized one-layer GPT-2 model; it downloads no checkpoint or dataset. Full pinned dependencies are in [requirements-ml.lock](requirements-ml.lock), with direct package pins in [requirements-ml.txt](requirements-ml.txt).
+
+```sh
+python3.11 -m venv .venv-ml
+./.venv-ml/bin/python -m pip install --no-cache-dir -r requirements-ml.lock
+env -u CONDA_PREFIX -u CONDA_DEFAULT_ENV -u PYTHONHOME -u PYTHONPATH \
+  ./.venv-ml/bin/python scripts/diagnose_ml_environment.py
+```
+
+On this Mac, the diagnostic used MPS successfully when run in a normal process outside the restricted command sandbox. Inside that sandbox, Metal is hidden, so the script selects CPU. No system-level changes are needed. See [docs/compute_feasibility.md](docs/compute_feasibility.md) for the verified results and remaining limitations.
 
 ## Future Interactive Demo
 

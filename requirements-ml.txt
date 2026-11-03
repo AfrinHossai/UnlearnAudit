@@ -1,0 +1,4 @@
+# Lightweight, project-local PyTorch + Transformers inference smoke environment.
+# This is not the full OpenUnlearning training stack.
+torch==2.9.1
+transformers==4.57.1
