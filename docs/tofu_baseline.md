@@ -1,8 +1,10 @@
 # Prepared TOFU forget01 baseline evaluation
 
-**Status:** Prepared, not evaluated. No model weights were downloaded, no
-responses were generated, and no unlearning was run while preparing this
-baseline.
+**Status:** The initial five-question pre-unlearning run was recorded locally
+and audited in [baseline findings](baseline_findings.md). Its JSON output is
+ignored by Git. The expanded paired forget/retain evaluation is prepared but
+has not been run; see [paired evaluation instructions](paired_tofu_evaluation.md).
+This document preserves the original five-question model and data setup.
 
 ## Model and provenance
 
@@ -96,7 +98,7 @@ these scores. The sample is small, uses one fixed prompt per row, and omits
 TOFU's truth-ratio, paraphrase, and retain utility evaluation. It therefore
 cannot establish memorization, forgetting, privacy, or unlearning effectiveness.
 
-## Run the first real baseline
+## Reproduce the initial five-question baseline
 
 The current `.venv-ml` uses Python 3.11.18, PyTorch 2.9.1, and Transformers
 4.57.1, pinned directly in `requirements-ml.txt` and fully resolved in
@@ -108,14 +110,15 @@ env -u CONDA_PREFIX -u CONDA_DEFAULT_ENV -u PYTHONHOME -u PYTHONPATH \
   ./.venv-ml/bin/python -m src.evaluate_tofu_baseline \
   --data-file .cache/tofu/forget01.json \
   --sample-size 5 --seed 2026 --device auto --max-new-tokens 128 \
-  --output results/tofu_forget01_baseline.json
+  --output results/tofu_forget01_baseline_reproduction.json
 ```
 
 The first run is expected to transfer approximately 2.5 GB of model files into
 `.cache/huggingface/`; it does not need an HF token unless Hub access policy
-changes or the local network requires authentication. This command has not
-been run in the preparation task. Its output will be the first actual baseline
-result; no responses or scores are checked into this repository.
+changes or the local network requires authentication. The reproduction path
+is separate so it does not overwrite the historical five-question result.
+For the expanded paired baseline, use the command in
+[paired evaluation instructions](paired_tofu_evaluation.md).
 
 ## Tests
 
@@ -125,10 +128,10 @@ Run the offline suite from the repository root:
 ./.venv-ml/bin/python -m unittest discover -s tests -v
 ```
 
-The tests use synthetic records and a mocked tokenizer. They validate stable
-sampling, metric calculations, prompt-template arguments, and the output
-schema without calling `from_pretrained`, downloading files, or generating
-responses.
+The offline tests use synthetic records and a mocked tokenizer. They validate
+sampling, metrics, prompt-template arguments, paired split disjointness,
+manifest reproducibility, and artifact schemas without calling
+`from_pretrained`, downloading model weights, or generating responses.
 
 ## Official references
 

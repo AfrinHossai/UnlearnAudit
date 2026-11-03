@@ -1,9 +1,9 @@
 # UnlearnGuard: Privacy Leakage After Machine Unlearning
 
 **Project:** `UnlearnGuard-Privacy-Leakage-Research`  
-**Status:** TOFU dataset inspection, project-local ML smoke environment, and a pre-unlearning baseline evaluator are prepared; model evaluation and unlearning runs remain pending.
+**Status:** The first five-question pre-unlearning TOFU baseline has been recorded and audited. A larger paired forget/retain evaluation is prepared but has not been run; unlearning remains pending.
 
-> **Research status:** The repository inspects the official TOFU `forget01` dataset split. No TOFU checkpoint has been fine-tuned, benchmark-evaluated, or unlearned here, and no unlearning results or claims are reported. A tiny randomly initialized model is used only by the local environment smoke diagnostic.
+> **Research status:** No TOFU checkpoint has been fine-tuned or unlearned in this repository. The released TOFU-finetuned checkpoint has a local, ignored five-question pre-unlearning result; it is a lightweight diagnostic, not an official TOFU Forget Quality or Model Utility evaluation. A tiny randomly initialized model is used only by the local environment smoke diagnostic.
 
 ## Motivation
 
@@ -23,7 +23,7 @@ The planned study will address:
 
 ## Planned Methodology
 
-Every item in this section is **planned work**. No TOFU model has been trained or benchmark-evaluated in this repository.
+Every item in this section is **planned work**. No TOFU model has been trained or unlearned in this repository. The local five-question result and prepared paired baseline are diagnostics; official benchmark evaluation remains pending.
 
 1. **Pin the benchmark and model.** Use the TOFU data and its designated forget/retain protocol. Before running experiments, select and record a compatible TOFU-finetuned checkpoint and immutable dataset/model revisions. Publish configuration files, data provenance, and checksums where licensing permits.
 2. **Run one unlearning technique.** Apply gradient ascent to the forget examples using a documented optimizer, learning rate, batch size, number of steps, and random seed. Keep the method fixed across comparisons; record each configuration and checkpoint identifier.
@@ -52,13 +52,13 @@ The `requirements.txt` file documents that the pipeline and tests use only the P
 
 See [docs/compute_feasibility.md](docs/compute_feasibility.md) for the verified local ML environment, MPS sandbox diagnosis, OpenUnlearning compatibility, and a recommended next experiment.
 
-See [docs/tofu_baseline.md](docs/tofu_baseline.md) for the pinned official TOFU-fine-tuned Llama checkpoint, deterministic `forget01` baseline configuration, matching metrics and limitations, and the exact command for the first real evaluation. The evaluator is prepared but has not downloaded weights or generated responses.
+See [docs/tofu_baseline.md](docs/tofu_baseline.md) for the initial five-question configuration and [docs/paired_tofu_evaluation.md](docs/paired_tofu_evaluation.md) for the frozen forget/retain manifest, official-metric plan, and exact command for the expanded evaluation.
 
 This pipeline only reads the benchmark data. It does not load a model or perform any training, fine-tuning, evaluation, or machine unlearning. The inspected records are not evidence that any model has forgotten anything.
 
-## Prepared TOFU Model Baseline
+## TOFU Pre-Unlearning Evaluations
 
-[`src/evaluate_tofu_baseline.py`](src/evaluate_tofu_baseline.py) can measure a five-question pre-unlearning response baseline from the already TOFU-fine-tuned `open-unlearning/tofu_Llama-3.2-1B-Instruct_full` checkpoint. It uses the checkpoint's tokenizer chat template, deterministic greedy decoding, a checksum-verified local `forget01` file, and strict plus clearly labeled lexical answer-match metrics. Automated tests use synthetic data and mocks; they do not load or download the checkpoint. Follow [docs/tofu_baseline.md](docs/tofu_baseline.md) to run the first real baseline outside the Codex sandbox. This is preparation only: it contains no model outputs or measured performance.
+The initial five-question result from [`src/evaluate_tofu_baseline.py`](src/evaluate_tofu_baseline.py) is recorded locally at the ignored path `results/tofu_forget01_baseline.json` and reviewed in [docs/baseline_findings.md](docs/baseline_findings.md). The new [`src/evaluate_tofu_paired.py`](src/evaluate_tofu_paired.py) prepares a frozen manifest for all 40 `forget01` questions, a deterministic 40-question sample from `retain99`, and optional official paraphrase and `holdout01` diagnostics. Its manifest and expanded run instructions are in [docs/paired_tofu_evaluation.md](docs/paired_tofu_evaluation.md). The paired evaluation has not yet run; neither evaluator's lightweight lexical metrics are official TOFU Forget Quality or Model Utility scores.
 
 ## Local ML Environment Smoke Test
 
