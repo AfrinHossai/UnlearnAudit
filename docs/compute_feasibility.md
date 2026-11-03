@@ -1,7 +1,7 @@
 # Machine-unlearning compute feasibility
 
 **Assessment date:** 2026-11-03
-**Scope:** Read-only inspection of this Mac and OpenUnlearning, plus a separate project-local environment for a no-download inference smoke test. Installed only the pinned PyTorch and Transformers stack in `.venv-ml`; global Python and the existing TOFU-inspection `.venv` were left untouched. No checkpoint or dataset was downloaded, and no unlearning or benchmark experiment was run.
+**Scope:** Inspection of this Mac and OpenUnlearning, a separate project-local environment for a no-checkpoint inference smoke test, and preparation of an offline-tested TOFU baseline evaluator. Global Python and the existing TOFU-inspection `.venv` were left untouched. The small pinned `forget01` dataset cache already exists from the earlier inspection task; no model checkpoint was downloaded, no model response baseline was run, and no unlearning was performed.
 
 ## Decision
 
@@ -80,9 +80,17 @@ OpenUnlearning supports [GradDiff](https://raw.githubusercontent.com/locuslab/op
 
 The memory figures above are planning estimates, not measurements from this Mac. They follow from the checkpoint size and the storage required by full-parameter training; the OpenUnlearning reproduction page reports its actual hardware but does not give a minimum-memory requirement for a single machine.
 
-## Recommended next experiment
+## Prepared local baseline evaluation
 
-Run a **TOFU `forget10` GradDiff unlearning pass on the 1B full-TOFU checkpoint** in a Linux cloud environment. For a closest match to the published OpenUnlearning setup, use two 48 GB NVIDIA GPUs and the upstream Python 3.11 environment. Use 10 epochs, learning rate `1e-5`, bfloat16, `gamma=1`, `alpha=1`, NLL retain loss, and the baseline script's per-device batch 4, accumulation 4, and gradient checkpointing. Prepare the retain90 evaluation log expected by the baseline script. Record the source checkpoint and dataset revision, and compare the full checkpoint with the unlearned checkpoint on forget10, retain90, and holdout10. This yields an actual weight-update experiment that starts from a model trained on the relevant TOFU facts.
+The repository now contains an offline-testable evaluator for five deterministic questions from the checksum-pinned TOFU `forget01` split. It uses OpenUnlearning's official `open-unlearning/tofu_Llama-3.2-1B-Instruct_full` checkpoint at immutable revision `88e31200b97e4c0c04ae0d2f0b591f427046d192`. The public Hub page lists the 1B BF16 Safetensors model, BSD-3-Clause license, and a 2.47 GB weight file plus the tokenizer files. The page and files listing show no gate or access-request requirement; an HF authorization token is not expected. We did not fetch the weights, so that conclusion reflects public metadata and file listing rather than a completed anonymous weight download.
+
+The evaluator loads the bundled tokenizer from the same checkpoint revision (not the separately hosted `meta-llama` tokenizer), applies its chat template with OpenUnlearning's fixed system prompt/date, and uses greedy generation. On MPS it casts the BF16 checkpoint to FP16; on CPU it casts to FP32. The weight file itself is about 2.47 GB; FP32 model weights require roughly twice the FP16/BF16 storage, with additional memory for model loading, activations, and KV cache. The Mac's 48 GB unified memory should leave room for a small inference sample, but exact peak memory on this checkpoint has not been measured. The first actual run will need about 2.5 GB of checkpoint downloads and is expected to use MPS only when invoked outside the restricted sandbox. The pre-unlearning evaluation measures only the initial responses on forget questions; it is not an unlearning run and the lexical matching metrics are not TOFU's full truth-ratio or utility protocol.
+
+See [`tofu_baseline.md`](tofu_baseline.md) for the full provenance, sampling and metric definitions, limitations, automated tests, and the exact command to run the first real baseline from a normal macOS Terminal. No model responses or performance values have been generated or checked in.
+
+## Recommended unlearning experiment after the baseline
+
+First record the local pre-unlearning baseline using the command in [`tofu_baseline.md`](tofu_baseline.md). Then run a **TOFU `forget10` GradDiff unlearning pass on the 1B full-TOFU checkpoint** in a Linux cloud environment. For a closest match to the published OpenUnlearning setup, use two 48 GB NVIDIA GPUs and the upstream Python 3.11 environment. Use 10 epochs, learning rate `1e-5`, bfloat16, `gamma=1`, `alpha=1`, NLL retain loss, and the baseline script's per-device batch 4, accumulation 4, and gradient checkpointing. Prepare the retain90 evaluation log expected by the baseline script. Record the source checkpoint and dataset revision, and compare the full checkpoint with the unlearned checkpoint on forget10, retain90, and holdout10. This yields an actual weight-update experiment that starts from a model trained on the relevant TOFU facts.
 
 ```bash
 CUDA_VISIBLE_DEVICES=0,1 accelerate launch \

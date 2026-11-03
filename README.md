@@ -1,7 +1,7 @@
 # UnlearnGuard: Privacy Leakage After Machine Unlearning
 
 **Project:** `UnlearnGuard-Privacy-Leakage-Research`  
-**Status:** TOFU dataset inspection pipeline and project-local ML smoke environment implemented; model unlearning experiments remain planned.
+**Status:** TOFU dataset inspection, project-local ML smoke environment, and a pre-unlearning baseline evaluator are prepared; model evaluation and unlearning runs remain pending.
 
 > **Research status:** The repository inspects the official TOFU `forget01` dataset split. No TOFU checkpoint has been fine-tuned, benchmark-evaluated, or unlearned here, and no unlearning results or claims are reported. A tiny randomly initialized model is used only by the local environment smoke diagnostic.
 
@@ -52,7 +52,13 @@ The `requirements.txt` file documents that the pipeline and tests use only the P
 
 See [docs/compute_feasibility.md](docs/compute_feasibility.md) for the verified local ML environment, MPS sandbox diagnosis, OpenUnlearning compatibility, and a recommended next experiment.
 
+See [docs/tofu_baseline.md](docs/tofu_baseline.md) for the pinned official TOFU-fine-tuned Llama checkpoint, deterministic `forget01` baseline configuration, matching metrics and limitations, and the exact command for the first real evaluation. The evaluator is prepared but has not downloaded weights or generated responses.
+
 This pipeline only reads the benchmark data. It does not load a model or perform any training, fine-tuning, evaluation, or machine unlearning. The inspected records are not evidence that any model has forgotten anything.
+
+## Prepared TOFU Model Baseline
+
+[`src/evaluate_tofu_baseline.py`](src/evaluate_tofu_baseline.py) can measure a five-question pre-unlearning response baseline from the already TOFU-fine-tuned `open-unlearning/tofu_Llama-3.2-1B-Instruct_full` checkpoint. It uses the checkpoint's tokenizer chat template, deterministic greedy decoding, a checksum-verified local `forget01` file, and strict plus clearly labeled lexical answer-match metrics. Automated tests use synthetic data and mocks; they do not load or download the checkpoint. Follow [docs/tofu_baseline.md](docs/tofu_baseline.md) to run the first real baseline outside the Codex sandbox. This is preparation only: it contains no model outputs or measured performance.
 
 ## Local ML Environment Smoke Test
 
@@ -78,11 +84,11 @@ An interactive application is planned after the experiment pipeline is implement
 ```text
 .
 ├── app/          # Planned interactive demo
-├── docs/         # Dataset provenance and reproducibility documentation
+├── docs/         # Dataset provenance, compute assessment, and baseline instructions
 ├── experiments/  # Planned run configurations and experiment records
 ├── results/      # Tracked, metadata-only TOFU inspection summary
-├── src/          # Dataset inspection code; model experiments remain planned
-└── tests/        # Standard-library tests for inspection and validation
+├── src/          # Dataset inspection and lazy baseline evaluation code
+└── tests/        # Offline standard-library tests for inspection and baseline logic
 ```
 
 ## References
