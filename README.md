@@ -50,6 +50,8 @@ python -m src.inspect_tofu
 
 The `requirements.txt` file documents that the pipeline and tests use only the Python standard library. On the first inspection, the script downloads the pinned `forget01.json` file into `.cache/tofu/` and verifies its SHA-256 digest before loading it. The cache, virtual environment, and dataset files are excluded from Git. The summary records schema and validation metadata without copying question or answer text. See [docs/data.md](docs/data.md) for dataset provenance, attribution, and the limits of this inspection.
 
+See [docs/compute_feasibility.md](docs/compute_feasibility.md) for a read-only assessment of local hardware and Python support for machine-unlearning experiments, OpenUnlearning compatibility, and a recommended next experiment.
+
 This pipeline only reads the benchmark data. It does not load a model or perform any training, fine-tuning, evaluation, or machine unlearning. The inspected records are not evidence that any model has forgotten anything.
 
 ## Future Interactive Demo
