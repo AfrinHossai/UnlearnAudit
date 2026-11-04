@@ -62,6 +62,8 @@ The initial five-question result from [`src/evaluate_tofu_baseline.py`](src/eval
 
 ## Local GradDiff Prototype
 
+**Task 30 backward-only preparation:** a separate [guarded SmolLM2 rehearsal](docs/smollm2_backward_rehearsal_task30.md) is ready for a future normal-Terminal attempt with explicit opt-in and at least 20 GiB live preload availability. It uses one pinned TOFU forget/retain pair, two forwards and one backward, finite-gradient and unchanged-parameter checks, and has no optimizer, checkpoint-write or download path. Default execution validates only. Task 29's verified MPS read-only result does not authorize training; full-model backward remains unexecuted. Original Llama training guards are unchanged.
+
 **Task 25 read-only measurement:** a separate [SmolLM2 MPS preflight](docs/smollm2_readonly_preflight.md) is ready for an owner-run normal Terminal command with explicit pinned-checkpoint download permission. Preparation used mocked tests and cached metadata only. It records RSS, MPS allocations, sampled maxima, pressure and availability for one frozen inference-mode forward. All current thresholds remain binding; no physical result or training approval is claimed.
 
 **Task 24 memory assessment:** the [SmolLM2 memory investigation](docs/smollm2_memory_admission.md) confirms that the 32 GiB admission policy was inherited from Llama. Actual SmolLM2 device fit remains unresolved. A separate offline assessor validates future measurement evidence but always returns STOP; no lower threshold or training is approved. All active Llama and small-model safeguards remain binding.
