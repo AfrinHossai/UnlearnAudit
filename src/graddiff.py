@@ -36,8 +36,10 @@ def causal_lm_nll(logits: torch.Tensor, labels: torch.Tensor,
     valid = shifted_labels.ne(ignore_index)
     if not bool(valid.any().item()):
         raise ValueError("labels contain no next-token targets after causal shift")
+    # Pinned Transformers ForCausalLMLoss explicitly upcasts logits to FP32
+    # before cross entropy; preserve that behavior for BF16/FP16 model outputs.
     result = F.cross_entropy(
-        logits[:, :-1, :].reshape(-1, vocab), shifted_labels.reshape(-1),
+        logits[:, :-1, :].float().reshape(-1, vocab), shifted_labels.reshape(-1),
         ignore_index=ignore_index, reduction="mean",
     )
     _scalar_finite("causal NLL", result)

@@ -4,6 +4,7 @@ import subprocess
 import sys
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
 try:
     import torch
@@ -55,6 +56,20 @@ class GradDiffPrototypeTests(unittest.TestCase):
         self.assertTrue(torch.allclose(actual, expected_terms.mean(), atol=1e-7, rtol=1e-7))
         self.assertFalse(torch.allclose(actual, expected_terms.sum()))
 
+    def test_bfloat16_logits_are_upcast_before_causal_cross_entropy(self):
+        logits = torch.tensor(
+            [[[0.2, 0.3, 1.1], [1.0, -0.2, 0.1], [0.1, 0.2, 0.3]]],
+            dtype=torch.bfloat16,
+        )
+        labels = torch.tensor([[-100, 2, 1]])
+        actual = self.causal_lm_nll(logits, labels)
+        expected = F.cross_entropy(
+            logits[:, :-1, :].float().reshape(-1, 3), labels[:, 1:].reshape(-1),
+            ignore_index=-100, reduction="mean",
+        )
+        self.assertEqual(actual.dtype, torch.float32)
+        self.assertTrue(torch.equal(actual, expected))
+
     def test_objective_uses_separate_mean_losses_and_official_coefficients(self):
         forget = torch.tensor(2.0, requires_grad=True)
         retain = torch.tensor(3.0, requires_grad=True)
@@ -63,6 +78,71 @@ class GradDiffPrototypeTests(unittest.TestCase):
         forget_grad, retain_grad = torch.autograd.grad(loss, (forget, retain))
         self.assertEqual(forget_grad.item(), -0.5)
         self.assertEqual(retain_grad.item(), 2.0)
+
+    def test_matches_pinned_openunlearning_compute_loss_formula_and_gradients(self):
+        # Source transcriptions of pinned Transformers 4.51.3 ForCausalLMLoss
+        # and OpenUnlearning GradDiff.compute_loss at
+        # a456aa277be14b836248e42b13b3befe47bb03f4.
+        def pinned_transformers_causal_lm_loss(logits, labels):
+            logits = logits.float()
+            labels = F.pad(labels, (0, 1), value=-100)
+            shift_labels = labels[..., 1:].contiguous()
+            flat_logits = logits.view(-1, logits.shape[-1])
+            flat_labels = shift_labels.view(-1).to(flat_logits.device)
+            return F.cross_entropy(
+                flat_logits, flat_labels, ignore_index=-100, reduction="mean"
+            )
+
+        def pinned_openunlearning_compute_loss(forget_outputs, retain_outputs, gamma, alpha):
+            forget_loss = -forget_outputs.loss
+            retain_loss = retain_outputs.loss
+            return gamma * forget_loss + alpha * retain_loss
+
+        forget_logits = torch.tensor(
+            [[[0.4, -0.3, 0.7], [0.1, 0.5, -0.4], [0.3, -0.2, 0.8]],
+             [[-0.1, 0.6, 0.2], [0.9, -0.5, 0.1], [0.2, 0.4, -0.3]]],
+            requires_grad=True,
+        )
+        retain_logits = torch.tensor(
+            [[[0.2, 0.8, -0.4], [-0.1, 0.5, 0.3], [0.6, -0.2, 0.1]],
+             [[0.3, -0.6, 0.4], [0.7, 0.2, -0.5], [-0.4, 0.1, 0.8]]],
+            requires_grad=True,
+        )
+        forget_labels = torch.tensor([[-100, 2, 1], [-100, 0, -100]])
+        retain_labels = torch.tensor([[-100, 1, 0], [-100, 2, -100]])
+        upstream_forget_nll = pinned_transformers_causal_lm_loss(forget_logits, forget_labels)
+        upstream_retain_nll = pinned_transformers_causal_lm_loss(retain_logits, retain_labels)
+        local_forget_nll = self.causal_lm_nll(forget_logits, forget_labels)
+        local_retain_nll = self.causal_lm_nll(retain_logits, retain_labels)
+        upstream_forget_outputs = SimpleNamespace(loss=upstream_forget_nll)
+        upstream_retain_outputs = SimpleNamespace(loss=upstream_retain_nll)
+        local_forget_outputs = SimpleNamespace(loss=local_forget_nll)
+        local_retain_outputs = SimpleNamespace(loss=local_retain_nll)
+
+        upstream_loss = pinned_openunlearning_compute_loss(
+            upstream_forget_outputs, upstream_retain_outputs, gamma=0.7, alpha=1.3
+        )
+        local_loss = self.graddiff_objective(
+            local_forget_outputs.loss, local_retain_outputs.loss, gamma=0.7, alpha=1.3
+        )
+        upstream_grads = torch.autograd.grad(
+            upstream_loss, (forget_logits, retain_logits), retain_graph=True
+        )
+        local_grads = torch.autograd.grad(local_loss, (forget_logits, retain_logits))
+        self.assertTrue(torch.allclose(upstream_loss, local_loss, atol=1e-7, rtol=1e-7))
+        for upstream_grad, local_grad in zip(upstream_grads, local_grads):
+            self.assertTrue(torch.allclose(upstream_grad, local_grad, atol=1e-7, rtol=1e-7))
+
+    def test_extreme_finite_logits_keep_cross_entropy_and_gradients_finite(self):
+        logits = torch.tensor(
+            [[[10000.0, -10000.0], [10000.0, -10000.0],
+              [-10000.0, 10000.0]]], requires_grad=True,
+        )
+        labels = torch.tensor([[-100, 1, 0]])
+        nll = self.causal_lm_nll(logits, labels)
+        nll.backward()
+        self.assertTrue(torch.isfinite(nll))
+        self.assertTrue(torch.isfinite(logits.grad).all())
 
     def test_rejects_nonfinite_losses_logits_and_empty_shifted_labels(self):
         with self.assertRaises(FloatingPointError):
@@ -110,6 +190,7 @@ class GradDiffPrototypeTests(unittest.TestCase):
         self.assertTrue(all(torch.isfinite(v).all() for state in optimizer.state.values()
                             for v in state.values() if isinstance(v, torch.Tensor)
                             and v.is_floating_point()))
+        self.assertEqual(optimizer.state[model.task_logits]["step"].item(), 1.0)
 
     def test_device_and_process_guards_are_explicit(self):
         self.assertEqual(self.select_device("cpu").type, "cpu")

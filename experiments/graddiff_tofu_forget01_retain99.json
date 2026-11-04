@@ -5,21 +5,22 @@
   "scope": "Primary CUDA reproduction profile for OpenUnlearning GradDiff; this file is a local experiment specification, not a directly loadable Hydra config.",
   "upstream": {
     "repository": "https://github.com/locuslab/open-unlearning",
-    "reviewed_ref": "main",
+    "reviewed_ref": "a456aa277be14b836248e42b13b3befe47bb03f4",
     "review_date": "2026-11-03",
-    "commit_sha": null,
-    "freeze_before_execution": "Clone the repository, record git rev-parse HEAD, confirm the referenced GradDiff, trainer, data, model, and evaluator files still match this review, and archive the resolved config and dependency lock. Do not execute from a moving main branch.",
+    "commit_sha": "a456aa277be14b836248e42b13b3befe47bb03f4",
+    "commit_selection_note": "This is the last commit shown in the GradDiff handler file history; pin the repository to this tree for the reviewed handler and configuration comparison.",
+    "freeze_before_execution": "Check out this exact commit, verify the GradDiff, trainer, data, model, and evaluator files and resolved configuration, and archive the dependency lock. Do not execute from a moving main branch.",
     "implementation_path": "src/trainer/unlearn/grad_diff.py",
     "method_config_path": "configs/trainer/GradDiff.yaml",
     "experiment_config_path": "configs/experiment/unlearn/tofu/default.yaml",
     "training_config_path": "configs/trainer/finetune.yaml",
     "evaluation_config_path": "configs/eval/tofu.yaml",
     "references": {
-      "implementation": "https://raw.githubusercontent.com/locuslab/open-unlearning/main/src/trainer/unlearn/grad_diff.py",
-      "method_config": "https://raw.githubusercontent.com/locuslab/open-unlearning/main/configs/trainer/GradDiff.yaml",
-      "training_config": "https://raw.githubusercontent.com/locuslab/open-unlearning/main/configs/trainer/finetune.yaml",
-      "tofu_script": "https://raw.githubusercontent.com/locuslab/open-unlearning/main/scripts/tofu_unlearn.sh",
-      "evaluation_config": "https://raw.githubusercontent.com/locuslab/open-unlearning/main/configs/eval/tofu.yaml"
+      "implementation": "https://github.com/locuslab/open-unlearning/blob/a456aa277be14b836248e42b13b3befe47bb03f4/src/trainer/unlearn/grad_diff.py",
+      "method_config": "https://github.com/locuslab/open-unlearning/blob/a456aa277be14b836248e42b13b3befe47bb03f4/configs/trainer/GradDiff.yaml",
+      "training_config": "https://github.com/locuslab/open-unlearning/blob/a456aa277be14b836248e42b13b3befe47bb03f4/configs/trainer/finetune.yaml",
+      "tofu_script": "https://github.com/locuslab/open-unlearning/blob/a456aa277be14b836248e42b13b3befe47bb03f4/scripts/tofu_unlearn.sh",
+      "evaluation_config": "https://github.com/locuslab/open-unlearning/blob/a456aa277be14b836248e42b13b3befe47bb03f4/configs/eval/tofu.yaml"
     }
   },
   "method": {
@@ -85,35 +86,35 @@
   },
   "dependencies_reviewed_from_upstream_requirements": {
     "python": "3.11 (upstream quickstart environment)",
+    "source_commit": "a456aa277be14b836248e42b13b3befe47bb03f4",
     "requirements_txt_pins": {
-      "huggingface-hub": "1.7.2",
-      "transformers": "5.5.4",
-      "hf-xet": "1.4.2",
+      "huggingface-hub": "0.36.0",
+      "transformers": "4.51.3",
+      "hf-xet": "1.2.0",
       "numpy": "2.2.3",
       "hydra-core": "1.3",
       "hydra_colorlog": "1.2.0",
-      "torch": "2.9.1",
+      "torch": "2.4.1",
       "datasets": "3.0.1",
-      "accelerate": "1.13.0",
-      "bitsandbytes": "0.49.2",
+      "accelerate": "0.34.2",
+      "bitsandbytes": "0.44.1",
       "rouge-score": "0.1.2",
       "scipy": "1.14.1",
       "tensorboard": "2.18.0",
       "scikit-learn": "1.5.2",
       "deepspeed": "0.15.4",
-      "wandb": "0.21.4",
-      "flash-linear-attention": "0.4.2 (upstream requirements note says this is for Qwen3.5 speedup; not used by this Llama experiment)"
+      "wandb": "0.21.4"
     },
     "flash-attn": "2.8.3 (separate CUDA/Linux install in upstream quickstart; example wheel targets CUDA 12.8, Linux x86_64, CPython 3.11)",
-    "local_environment_mismatch": "The existing .venv-ml uses Transformers 4.57.1 and is an inference smoke environment, not a compatible OpenUnlearning training environment."
+    "local_environment_mismatch": "The existing .venv-ml uses PyTorch 2.9.1 and Transformers 4.57.1, not the pinned OpenUnlearning PyTorch 2.4.1 and Transformers 4.51.3; it remains an inference/synthetic-test environment, not a validated OpenUnlearning training environment."
   },
   "training": {
     "seed": 2026,
     "data_seed": 2026,
     "num_train_epochs": 10,
     "learning_rate": 0.00001,
-    "warmup_epochs": 1.0,
-    "weight_decay": 0.01,
+    "warmup_ratio": 0.0,
+    "weight_decay": 0.0,
     "per_device_train_batch_size": 4,
     "gradient_accumulation_steps": 4,
     "num_processes": 2,

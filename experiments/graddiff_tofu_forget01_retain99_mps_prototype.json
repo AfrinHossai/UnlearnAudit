@@ -6,10 +6,35 @@
   "purpose": "Document the Apple Silicon adaptation and its offline synthetic validation. This profile is not the recommended scientific run; no real model or TOFU data has been loaded.",
   "device": {
     "backend": "mps",
-    "host": "Apple M4 Pro, 48 GB unified memory",
-    "availability_evidence": "A three-step synthetic MPS dry run and a CPU-versus-MPS tiny-model loss, gradient, and Torch AdamW update comparison passed in a normal local process. The restricted command sandbox cannot access Metal. Full-model training has not been tested.",
-    "estimated_parameter_storage_floor_bytes": 19200000000,
-    "estimate_basis": "Approximately 1.2 billion parameters at 4 bytes each for FP32 weights, 4 bytes for gradients, and 8 bytes for two FP32 Adam moments; excludes activations, temporary buffers, allocator overhead, and macOS memory.",
+    "host": "Apple M4 Pro, 48 GB marketed unified-memory capacity; macOS reports 51,539,607,552 bytes (48 GiB)",
+    "availability_evidence": "A three-step synthetic MPS dry run and a CPU-versus-MPS tiny-model loss, gradient, and Torch AdamW update comparison passed outside the restricted command sandbox on 2026-11-03. Inside the sandbox, Metal is hidden. Full-model training has not been tested.",
+    "estimated_trainable_parameters": 1235814400,
+    "estimated_fp32_training_state_floor_bytes": 19773030400,
+    "estimate_basis": "Architecture-based count from the pinned checkpoint config: 16 Llama layers, hidden size 2048, intermediate size 8192, vocabulary 128256, tied embedding/output weights, no projection biases. FP32 parameters plus same-sized gradients plus two FP32 Adam moments is 16 bytes per parameter. Excludes activations, temporary buffers, checkpoint loading copies, allocator overhead, and macOS memory.",
+    "estimated_live_tensor_footprints_fp32_batch1_sequence512": {
+      "two_forget_retain_output_logits_bytes": 525336576,
+      "two_sets_of_layer_boundary_activations_bytes": 142606336,
+      "one_layer_attention_score_matrix_if_materialized_bytes": 33554432,
+      "one_layer_mlp_gate_up_pair_bytes": 33554432,
+      "measurement": false,
+      "notes": "Derived tensor sizes, not a peak-memory profile. SDPA may avoid materializing attention scores. The actual MPS backend workspace and activation lifetime are unmeasured."
+    },
+    "unified_memory_bytes": 51539607552,
+    "unified_memory_capacity_source": "Observed from os.sysconf('SC_PHYS_PAGES') * os.sysconf('SC_PAGE_SIZE'); total capacity, not currently available memory.",
+    "arithmetic_headroom_after_training_state_floor_bytes": 31766577152,
+    "device_runtime_overhead_planning_reserve_gib": {
+      "minimum": 8,
+      "maximum": 12,
+      "measurement": false,
+      "basis": "Explicit planning allowance for macOS, other processes, Metal/PyTorch allocator state, and temporary workspaces; not measured on this host."
+    },
+    "estimated_planning_envelope_gib": {
+      "minimum": 27.1,
+      "maximum": 31.1,
+      "measurement": false,
+      "basis": "18.42 GiB FP32 parameter/gradient/Adam-state floor + about 0.68 GiB of listed live tensors + 8-12 GiB unvalidated device/runtime reserve; on 48 GiB total capacity this leaves 16.9-20.9 GiB for uncounted buffers on paper; excludes other activations and transients."
+    },
+    "headroom_is_measurement": false,
     "memory_estimate_is_measurement": false
   },
   "method": {
@@ -24,6 +49,7 @@
     "loss_module": "src/graddiff.py",
     "synthetic_trainer_and_cli": "src/graddiff_train.py",
     "automated_tests": "tests/test_graddiff.py",
+    "validated_against_upstream_commit": "a456aa277be14b836248e42b13b3befe47bb03f4",
     "dry_run_command": "python -m src.graddiff_train --dry-run --device auto --steps 3",
     "loss_normalization": "Shift logits and labels by one token; mean cross entropy over non-ignored next-token labels separately for forget and retain batches; combine the two means with -gamma and +alpha.",
     "runtime_safety": "Select MPS only when built and available, otherwise CPU for auto; explicit unavailable MPS request errors; no retry after execution failure; WORLD_SIZE must equal 1.",
@@ -42,28 +68,30 @@
     "gradient_checkpointing": true,
     "learning_rate": 0.00001,
     "num_train_epochs": 10,
-    "warmup_epochs": 1.0,
-    "weight_decay": 0.01,
+    "warmup_ratio": 0.0,
+    "weight_decay": 0.0,
     "seed": 2026,
     "data_seed": 2026,
     "deviations_from_upstream": [
       "FP32 in place of upstream BF16.",
       "PyTorch SDPA in place of flash_attention_2.",
-      "torch AdamW in place of bitsandbytes paged_adamw_32bit; the paged optimizer is not part of the current Apple Metal support matrix.",
+      "Torch AdamW in place of bitsandbytes paged_adamw_32bit; the pinned optimizer has not been tested in this MPS prototype.",
       "One MPS process in place of two CUDA processes and DeepSpeed ZeRO-3.",
       "Microbatch 1 with accumulation 32 to preserve a nominal global batch of 32; order, sampler behavior, kernel numerics, and throughput will still differ from distributed CUDA."
     ]
   },
   "mathematical_equivalence_acceptance_tests": {
     "status": "synthetic_local_tests_passed; direct_upstream_comparison_not_run",
-    "reference": "OpenUnlearning GradDiff implementation at an exact commit SHA to be recorded before comparison, with fixed token IDs, attention masks, labels, and the same tiny causal-model weights.",
+    "reference": "OpenUnlearning GradDiff implementation at commit a456aa277be14b836248e42b13b3befe47bb03f4; the deterministic synthetic test transcribes the pinned Transformers causal-LM loss and GradDiff compute_loss arithmetic, but does not execute the upstream class.",
     "completed_local_checks": [
       "Tests verify causal shift and mean reduction across non-ignored target tokens, per-split mean-loss coefficients, and gradient contributions -gamma*grad(forget NLL) and +alpha*grad(retain NLL).",
       "A tiny two-task model with AdamW verifies finite losses, gradients, parameters, optimizer state, increasing forget NLL, decreasing retain NLL, and decreasing minimized objective on CPU and MPS.",
-      "CPU and MPS tiny-fixture scalar losses, all fixture gradients, and a Torch AdamW parameter update agree within the proposed FP32 tolerances."
+      "CPU and MPS tiny-fixture scalar losses, all fixture gradients, and a Torch AdamW parameter update agree within the proposed FP32 tolerances.",
+      "A deterministic test-only transcription of the pinned OpenUnlearning compute_loss arithmetic matches local scalar loss and input-logit gradients.",
+      "BF16 logits are upcast to FP32 before cross entropy; extreme finite logits produce finite loss and gradients."
     ],
     "remaining_checks": [
-      "Direct tensor-by-tensor comparison against a frozen OpenUnlearning commit and identical causal-model weights has not been run.",
+      "Runtime comparison against the actual pinned OpenUnlearning class with identical causal-model weights has not been run.",
       "Paged AdamW32bit versus torch AdamW and the official optimizer trajectory have not been compared.",
       "Official tokenization, target-label masking, padding, retain sampling, effective-batch aggregation, and model-sized behavior remain unverified."
     ],
@@ -76,7 +104,7 @@
       "optimizer_parameter_rtol": 0.0001
     },
     "acceptance_rule": "All fixed-batch loss, gradient, and update comparisons must pass before considering a full-model MPS pilot. Passing small-model tests establishes objective/update agreement only; it does not establish full-model fit, runtime, deterministic kernels, or benchmark equivalence.",
-    "execution_status": "CPU unit tests, CPU and MPS synthetic CLI dry runs, and CPU-versus-MPS tiny-fixture loss/gradient/Torch AdamW update comparisons passed; no real model, TOFU data, official evaluation, or cloud resource was used."
+    "execution_status": "The full repository test suite passed all 39 tests with no skips outside the restricted sandbox; CPU and MPS synthetic CLI dry runs, CPU-versus-MPS tiny-fixture loss/gradient/Torch AdamW update comparisons, and pinned-source equation-transcription checks passed. The actual OpenUnlearning class was not executed; no real model, TOFU training data, official evaluation, or cloud resource was used."
   },
   "resource_and_claim_limits": {
     "full_model_peak_memory": "unknown; no full-model MPS training measurement exists",

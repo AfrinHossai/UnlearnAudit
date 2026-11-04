@@ -12,6 +12,7 @@ BASELINE = ROOT / "results" / "tofu_forget01_retain99_baseline.json"
 HISTORICAL_BASELINE_SHA256 = (
     "1473f6abc0c42164ee55dcf27328ab0b72c9e86e12c15764b71800e7462e8a0e"
 )
+OPENUNLEARNING_COMMIT = "a456aa277be14b836248e42b13b3befe47bb03f4"
 
 
 def read_json(path):
@@ -40,8 +41,10 @@ class GradDiffExperimentPlanTests(unittest.TestCase):
             self.mps["status"],
             "synthetic_prototype_implemented; model_training_not_run",
         )
-        self.assertIsNone(self.primary["upstream"]["commit_sha"])
-        self.assertIn("record git rev-parse HEAD", self.primary["upstream"]["freeze_before_execution"])
+        self.assertEqual(self.primary["upstream"]["commit_sha"], OPENUNLEARNING_COMMIT)
+        self.assertEqual(self.primary["upstream"]["reviewed_ref"], OPENUNLEARNING_COMMIT)
+        self.assertIn(OPENUNLEARNING_COMMIT, self.primary["upstream"]["references"]["implementation"])
+        self.assertIn("Check out this exact commit", self.primary["upstream"]["freeze_before_execution"])
 
     def test_gradiff_objective_and_official_method_defaults_match(self):
         method = self.primary["method"]
@@ -86,12 +89,19 @@ class GradDiffExperimentPlanTests(unittest.TestCase):
 
     def test_training_schedule_has_a_reproducible_effective_batch_and_checkpoint_plan(self):
         training = self.primary["training"]
+        dependencies = self.primary["dependencies_reviewed_from_upstream_requirements"]
+        self.assertEqual(dependencies["source_commit"], OPENUNLEARNING_COMMIT)
+        pins = dependencies["requirements_txt_pins"]
+        self.assertEqual(pins["torch"], "2.4.1")
+        self.assertEqual(pins["transformers"], "4.51.3")
+        self.assertEqual(pins["accelerate"], "0.34.2")
+        self.assertEqual(pins["bitsandbytes"], "0.44.1")
         self.assertEqual(training["seed"], 2026)
         self.assertEqual(training["data_seed"], 2026)
         self.assertEqual(training["num_train_epochs"], 10)
         self.assertEqual(training["learning_rate"], 1e-5)
-        self.assertEqual(training["warmup_epochs"], 1.0)
-        self.assertEqual(training["weight_decay"], 0.01)
+        self.assertEqual(training["warmup_ratio"], 0.0)
+        self.assertEqual(training["weight_decay"], 0.0)
         self.assertEqual(training["optimizer"], "paged_adamw_32bit")
         self.assertEqual(training["per_device_train_batch_size"], 4)
         self.assertEqual(training["gradient_accumulation_steps"], 4)
@@ -183,8 +193,24 @@ class GradDiffExperimentPlanTests(unittest.TestCase):
         self.assertEqual(profile["device"]["backend"], "mps")
         self.assertFalse(profile["device"]["memory_estimate_is_measurement"])
         self.assertFalse(profile["resource_and_claim_limits"]["recommended_for_primary_experiment"])
+        self.assertEqual(profile["device"]["estimated_trainable_parameters"], 1235814400)
+        self.assertEqual(profile["device"]["estimated_fp32_training_state_floor_bytes"], 19773030400)
+        self.assertEqual(
+            profile["device"]["device_runtime_overhead_planning_reserve_gib"],
+            {"minimum": 8, "maximum": 12, "measurement": False,
+             "basis": "Explicit planning allowance for macOS, other processes, Metal/PyTorch allocator state, and temporary workspaces; not measured on this host."},
+        )
+        self.assertEqual(
+            profile["device"]["estimated_planning_envelope_gib"]["minimum"], 27.1
+        )
+        self.assertEqual(
+            profile["device"]["arithmetic_headroom_after_training_state_floor_bytes"],
+            51539607552 - 19773030400,
+        )
+        self.assertIn("os.sysconf", profile["device"]["unified_memory_capacity_source"])
         implementation = profile["prototype_implementation"]
         self.assertEqual(implementation["loss_module"], "src/graddiff.py")
+        self.assertEqual(implementation["validated_against_upstream_commit"], OPENUNLEARNING_COMMIT)
         self.assertFalse(implementation["real_model_or_data_loading_implemented"])
         self.assertIn("WORLD_SIZE must equal 1", implementation["runtime_safety"])
         self.assertEqual(training["attention_implementation"], "sdpa")
@@ -192,13 +218,15 @@ class GradDiffExperimentPlanTests(unittest.TestCase):
         self.assertEqual(training["per_device_train_batch_size"], 1)
         self.assertEqual(training["gradient_accumulation_steps"], 32)
         self.assertEqual(training["effective_batch_size"], 32)
+        self.assertEqual(training["warmup_ratio"], 0.0)
+        self.assertEqual(training["weight_decay"], 0.0)
         self.assertEqual(len(training["deviations_from_upstream"]), 5)
         tests = profile["mathematical_equivalence_acceptance_tests"]
         self.assertEqual(
             tests["status"],
             "synthetic_local_tests_passed; direct_upstream_comparison_not_run",
         )
-        self.assertEqual(len(tests["completed_local_checks"]), 3)
+        self.assertEqual(len(tests["completed_local_checks"]), 5)
         self.assertEqual(len(tests["remaining_checks"]), 3)
         self.assertIn("All", tests["acceptance_rule"])
         for value in tests["mps_cpu_float32_tolerances"].values():

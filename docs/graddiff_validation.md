@@ -1,0 +1,78 @@
+# GradDiff implementation validation and training feasibility
+
+**Decision:** No-go for real-model optimizer steps with the current prototype. The local scalar GradDiff objective and gradients match a deterministic transcription of the pinned OpenUnlearning handler on synthetic tensors. The repository still has no real-model training path, and the actual pinned Trainer, tokenizer/collator, accumulation schedule, and optimizer have not been executed or compared end to end.
+
+## Scope and pinned references
+
+The reviewed OpenUnlearning reference is commit `a456aa277be14b836248e42b13b3befe47bb03f4`. GitHub's file history identifies this as the latest commit that changed `src/trainer/unlearn/grad_diff.py`; pinned source links and the SHA are recorded in [`experiments/graddiff_tofu_forget01_retain99.json`](../experiments/graddiff_tofu_forget01_retain99.json). The exact [GradDiff handler source](https://github.com/locuslab/open-unlearning/blob/a456aa277be14b836248e42b13b3befe47bb03f4/src/trainer/unlearn/grad_diff.py) was fetched from that immutable commit and reviewed alongside the [GradDiff config](https://github.com/locuslab/open-unlearning/blob/a456aa277be14b836248e42b13b3befe47bb03f4/configs/trainer/GradDiff.yaml), [base trainer config](https://github.com/locuslab/open-unlearning/blob/a456aa277be14b836248e42b13b3befe47bb03f4/configs/trainer/finetune.yaml), [TOFU launch script](https://github.com/locuslab/open-unlearning/blob/a456aa277be14b836248e42b13b3befe47bb03f4/scripts/tofu_unlearn.sh), and pinned [requirements](https://raw.githubusercontent.com/locuslab/open-unlearning/a456aa277be14b836248e42b13b3befe47bb03f4/requirements.txt).
+
+The upstream dependency pins at that commit include PyTorch 2.4.1 and Transformers 4.51.3. The repository's local synthetic tests ran with PyTorch 2.9.1 and Transformers 4.57.1; they do not establish behavior under the upstream dependency set. The comparison test below transcribes the small `compute_loss` expression from the pinned handler rather than importing or executing the OpenUnlearning package. This avoids installing its training stack or loading any model, but it is not a runtime comparison against the upstream Trainer class.
+
+## Confirmed formula and loss semantics
+
+For NLL retain loss, the upstream handler computes `forget_loss = -forget_outputs.loss`, obtains `retain_loss = retain_outputs.loss`, and returns `gamma * forget_loss + alpha * retain_loss`. The pinned method config sets `gamma=1.0`, `alpha=1.0`, and `retain_loss_type=NLL`. With `gamma=alpha=1`, this is `-NLL(forget) + NLL(retain)`. Minimizing it gives gradient ascent on forget NLL and gradient descent on retain NLL. The KL option creates a separate reference model in the upstream handler; this project's NLL profile does not.
+
+The handler passes `input_ids`, `attention_mask`, and `labels` to the model for each split. For NLL retain loss it negates `forget_outputs.loss`, adds `retain_outputs.loss`, and returns `gamma * forget_loss + alpha * retain_loss`; the reference model is only prepared for KL retain loss. It relies on the model's `.loss` for causal shifting and token masking. The pinned dependency version's [Transformers causal-LM loss](https://github.com/huggingface/transformers/blob/v4.51.3/src/transformers/loss/loss_utils.py) upcasts logits to FP32, shifts labels so token *n* predicts token *n+1*, ignores `-100`, and uses mean cross entropy when `num_items_in_batch` is omitted. The GradDiff handler accepts `num_items_in_batch` in its signature but does not forward it to the model, so this default mean applies. The local [`causal_lm_nll`](../src/graddiff.py) now implements the same shift, ignore index, FP32 loss upcast, and per-split mean reduction. Its deterministic tests cover ignored targets and label shift.
+
+| Behavior | Pinned OpenUnlearning | Local prototype | Finding |
+|---|---|---|---|
+| Forget sign | Negates `forget_outputs.loss`, then multiplies by `gamma` | `-gamma * forget_nll` | Same scalar contribution |
+| Retain term | NLL `.loss` multiplied by `alpha`; default `alpha=1` | `+alpha * retain_nll` | Same NLL term and coefficient |
+| Causal shift | Performed by the HF causal-LM loss | Explicit `logits[:, :-1]` against `labels[:, 1:]` | Same token alignment on synthetic tensors |
+| Target masking | Model loss ignores `labels == -100`; `attention_mask` also reaches the model | Loss ignores `-100`; synthetic model has no attention-mask path | Target ignore behavior tested; attention/padding behavior in a real model is not tested |
+| Reduction | HF mean cross entropy over valid targets for each model output | Mean over valid shifted targets, separately for forget and retain | Same standard per-output mean when no item count is passed |
+| Coefficients | Config has `gamma=1`, `alpha=1`, retain type `NLL` | Defaults `gamma=1`, `alpha=1`; finite coefficient validation | Same configured scalar objective |
+| Gradient accumulation | Hugging Face Trainer accumulates scaled microbatch gradients and steps at configured boundaries | `graddiff_training_step` zeroes, backpropagates, and steps once on every call | Not implemented or equivalent |
+| Optimizer | `paged_adamw_32bit` in pinned trainer config | Plain `torch.optim.AdamW` for synthetic tests | Optimizer trajectory is not equivalent |
+| Numerical guards | Handler delegates to model/Trainer; no explicit GradDiff finite checks | Checks finite logits/losses, gradients, parameters, and floating optimizer state | Local checks add fail-fast behavior; no large-model stability evidence |
+
+The pinned `finetune.yaml` defaults to per-device batch size 8, accumulation 4, BF16, `paged_adamw_32bit`, weight decay 0, no gradient checkpointing, and 10 epochs. The pinned TOFU script overrides batch size to 4, keeps accumulation 4, enables gradient checkpointing, and launches two processes, yielding nominal global batch 32. The experiment profiles now use `weight_decay=0.0` and `warmup_ratio=0.0` to match the pinned Trainer defaults; the earlier `0.01` weight decay and `warmup_epochs` field were unsupported deviations and have been removed. The project seed remains 2026 as a documented override to the upstream Trainer seed 0. The MPS profile's microbatch 1 and accumulation 32 preserves nominal effective batch 32, but it cannot preserve the upstream data order, distributed sampler, kernels, or optimizer.
+
+### Synthetic source-equation comparison
+
+[`tests/test_graddiff.py`](../tests/test_graddiff.py) includes fixed forget/retain logits and masked labels. It computes reference causal NLL with a test-only transcription of pinned Transformers 4.51.3 `ForCausalLMLoss`, computes local NLL with the local helper, then applies the pinned handler arithmetic and local objective independently. The test compares both scalar losses and all input-logit gradients with `gamma=0.7` and `alpha=1.3`. It is deterministic and tests the source-level formulas, not the external class; it does not compare model-parameter gradients or execute the Hugging Face Trainer. Other tests verify causal alignment, ignored targets, mean reduction, BF16-to-FP32 loss upcast, stable finite loss/gradients for extreme finite logits, gradient signs, one AdamW step, and CPU/MPS agreement on the tiny model.
+
+## Validation run and host memory observation
+
+On 2026-11-03, `./.venv-ml/bin/python -m unittest discover -s tests -v` passed all 39 repository tests with no skips outside the restricted sandbox. The MPS test initially skipped inside the sandbox because Metal is hidden there; the MPS-specific tests passed when rerun in a normal local process. The three-step synthetic CPU and MPS CLI dry runs both passed all finite-value and loss-direction assertions. The GradDiff synthetic runs loaded no model checkpoint or external training data. The installed environment is Python 3.11.18, PyTorch 2.9.1, and Transformers 4.57.1, so it still differs from the pinned OpenUnlearning dependency set.
+
+The host reports 51,539,607,552 bytes of total physical memory through `os.sysconf('SC_PHYS_PAGES') * os.sysconf('SC_PAGE_SIZE')` (48 GiB). This is total capacity, not current free memory. The planning envelope remains 27.1–31.1 GiB using an 8–12 GiB runtime reserve and selected live-tensor estimates; it leaves 16.9–20.9 GiB of the reported total on paper for uncounted activations and transients. The reserve and peak are not measured. No full-model load, backward pass, optimizer step, runtime, or out-of-memory threshold was measured.
+
+No implementation correction was needed for the GradDiff signs or coefficients. One justified correction was made to cast logits to FP32 before cross entropy, matching the pinned Transformers loss and improving reduced-precision numerical behavior. The planned experiment config was also corrected to pin the upstream source, dependency versions, zero weight decay, and zero warmup ratio.
+
+## Memory estimate for the pinned TOFU checkpoint
+
+The model config for the pinned [`open-unlearning/tofu_Llama-3.2-1B-Instruct_full`](https://huggingface.co/open-unlearning/tofu_Llama-3.2-1B-Instruct_full/blob/88e31200b97e4c0c04ae0d2f0b591f427046d192/config.json) checkpoint specifies 16 layers, hidden size 2,048, intermediate size 8,192, vocabulary size 128,256, and tied input/output embeddings. Counting the embedding, attention projections, gated MLP projections, layer norms, and final norm gives an architecture-derived estimate of 1,235,814,400 parameters. No model was instantiated to count parameters. The checkpoint's BF16 `model.safetensors` file is 2,471,645,608 bytes; that is a storage observation, not a training-memory measurement.
+
+For the proposed FP32 MPS adaptation, the arithmetic state floor is:
+
+| State | Estimate | Basis |
+|---|---:|---|
+| FP32 parameters | 4.94 GB (4.60 GiB) | 1,235,814,400 × 4 bytes |
+| FP32 gradients | 4.94 GB (4.60 GiB) | One gradient value per parameter |
+| Adam first and second moments | 9.89 GB (9.21 GiB) | 1,235,814,400 × 2 × 4 bytes |
+| **Parameters + gradients + moments** | **19.77 GB (18.42 GiB)** | Excludes scalar optimizer metadata and all activations/workspaces |
+
+At batch 1, sequence length 512, and FP32, useful activation footprints are also calculable: one output-logit tensor of shape `[1, 512, 128256]` is about 250.5 MiB; if both forget and retain logits are live together, they total about 501 MiB. One set of 17 layer-boundary hidden activations is 68 MiB, or 136 MiB for both paired forwards. A materialized 32-head 512×512 attention score tensor is 32 MiB for one layer; SDPA may avoid retaining this matrix. The two MLP gate/up tensors for one layer total 32 MiB. Gradient checkpointing should reduce saved layer intermediates, but recompute workspaces, output/loss tensors, and allocator behavior are unmeasured. During BF16-to-FP32 loading, a loader could temporarily hold roughly 2.47 GB of source weights plus 4.94 GB of FP32 destination weights; whether and how long these copies coexist depends on the loader.
+
+The host reports 51,539,607,552 bytes of total physical memory (48 GiB). Subtracting the 18.42 GiB state floor leaves about 29.58 GiB before activation tensors, temporary allocations, Metal/PyTorch allocator caches, macOS, and other applications. To avoid treating all remaining memory as available, the planning profile reserves 8–12 GiB for host/device runtime overhead. This is an explicit unvalidated allowance, not an observation from this Mac. Adding that allowance to the state floor and the listed 0.68 GiB of selected live tensors gives a rough 27.1–31.1 GiB planning envelope, before other activation and temporary buffers. A BF16-to-FP32 load could also transiently hold the 2.47 GB source checkpoint weights alongside 4.94 GB of FP32 destination weights (about 7.4 GB, or 6.9 GiB, total); this is a separate load-phase estimate, not additive to the optimizer-state peak. No current free-memory reading, full-model peak, runtime, or OOM threshold was measured. These figures are estimates, not benchmarks.
+
+## MPS feasibility and recommendation
+
+**Technical assessment:** a single-device MPS run looks plausible on paper at microbatch 1, sequence length at most 512, FP32, gradient checkpointing enabled, and SDPA. Under the explicitly stated 8–12 GiB planning reserve, the current arithmetic envelope is about 27.1–31.1 GiB, leaving 16.9–20.9 GiB of the host's 48 GiB total capacity for uncounted activations and transients on paper. The reserve itself is unvalidated and actual peaks may exceed it. This does not prove the full model fits: MPS allocator behavior, the actual checkpoint load path, macOS pressure, and peak backward memory have not been measured. The prototype has only been exercised on the tiny synthetic model using the installed PyTorch 2.9.1, not the pinned upstream PyTorch 2.4.1.
+
+For a future local feasibility pilot, first add a model wrapper that passes the official `input_ids`, `attention_mask`, and `labels`, and implements the planned accumulation boundary. Then run a memory-only load and a bounded forward/backward smoke with no optimizer step, at microbatch 1, length 512, FP32, gradient checkpointing, SDPA, and one process. Only after that passes should a disposable-copy optimizer-step pilot be considered. Keep the source checkpoint immutable and write any output to a new path. The current synthetic-only CLI cannot perform these steps, so this is not an approval to train.
+
+For an OpenUnlearning-faithful primary experiment, use the pinned Linux CUDA path with two 48 GB L40S GPUs, Accelerate, and DeepSpeed ZeRO-3 as described in its reproduction notes. A paid cloud GPU is not mathematically required for GradDiff, but is the practical alternative if matching that CUDA/distributed setup and no equivalent hardware is available. No cloud resource has been used or charged in this validation.
+
+## Go / no-go
+
+**No-go for a real-model weight update with the current repository implementation.** The synthetic equation, token shift, ignore-label reduction, and reduced-precision loss upcast are covered; the upstream source-level arithmetic matches on deterministic test tensors. The following remain unresolved:
+
+- Execute the actual pinned OpenUnlearning handler and Transformers 4.51.3 on the same tiny causal model and compare losses and every model-parameter gradient.
+- Implement/verify real tokenizer formatting, answer-only target masks, attention-mask forwarding, paired batch collation, and retain sampling.
+- Implement/verify gradient accumulation and optimizer/scheduler stepping. Current helper steps once per call and uses Torch AdamW, unlike the pinned Trainer plus paged AdamW.
+- Exercise the model loader and collect peak MPS memory, full-model throughput, and numerical stability at length 512.
+- Validate checkpoints, rollback, and the official evaluator before any actual TOFU run.
+
+**Conditional feasibility:** a later memory-only or non-updating forward/backward smoke on MPS is reasonable after adding the real-model wrapper and confirming the pinned source-level checks. The current prototype is not yet ready to conduct even that smoke through its CLI. No real model was loaded, no TOFU data was used for training, no unlearning occurred, and no historical result was changed.

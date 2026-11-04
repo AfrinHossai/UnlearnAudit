@@ -1,7 +1,7 @@
 # UnlearnGuard: Privacy Leakage After Machine Unlearning
 
 **Project:** `UnlearnGuard-Privacy-Leakage-Research`  
-**Status:** The five-question baseline and paired 40-forget/40-retain pre-unlearning diagnostic are saved and audited. A synthetic local GradDiff prototype is implemented and tested; GradDiff training and official TOFU evaluation remain pending.
+**Status:** The five-question baseline and paired 40-forget/40-retain pre-unlearning diagnostic are saved and audited. The synthetic GradDiff objective has passed equation-level validation against a pinned OpenUnlearning source transcription; real-model training and official TOFU evaluation remain pending.
 
 > **Research status:** No TOFU checkpoint has been fine-tuned or unlearned in this repository. The released TOFU-finetuned checkpoint has local five-question and paired 40/40 pre-unlearning diagnostics. Their JSON outputs remain ignored by Git; the paired artifact's audit metadata is recorded in the GradDiff plan. These are lightweight lexical diagnostics, not official TOFU Forget Quality or Model Utility evaluations. A tiny randomly initialized model is used only by the local environment smoke diagnostic.
 
@@ -70,7 +70,7 @@ Run the synthetic dry run with PyTorch installed:
 python -m src.graddiff_train --dry-run --device auto --steps 3
 ```
 
-The unit tests cover loss normalization, coefficient and gradient signs, non-finite checks, a tiny AdamW update, device/process guards, and the CLI. CPU and MPS synthetic dry runs pass; a tiny-fixture CPU/MPS loss, gradient, and Torch AdamW update comparison also passes the proposed tolerances. The prototype validates synthetic objective behavior only. It is not yet ready for a real-model pilot: official-handler tensor comparisons, tokenizer and label-mask verification, data-sampler validation, and full-model memory checks remain outstanding. No TOFU GradDiff run or real unlearning has been performed. Details and limitations are in [the experiment plan](docs/graddiff_experiment_plan.md).
+The full test suite passed (39 tests, no skips) when run outside the restricted sandbox so the MPS check could access Metal. The tests cover loss normalization, coefficient and gradient signs, non-finite checks, reduced-precision loss upcasting, a tiny AdamW update, device/process guards, and the CLI. A deterministic test-only transcription of the pinned Transformers causal-LM loss and OpenUnlearning GradDiff objective (commit `a456aa277be14b836248e42b13b3befe47bb03f4`) matches the local scalar loss and input-logit gradients; the three-step CPU and MPS synthetic dry runs also pass. These checks do not execute the official Trainer or establish pipeline equivalence. The implementation is **not ready for a real-model optimizer step**: model/tokenizer and attention-mask integration, gradient accumulation, optimizer parity, and full-model MPS peak memory remain unverified. See [the detailed validation and feasibility report](docs/graddiff_validation.md) and [the experiment plan](docs/graddiff_experiment_plan.md). No TOFU GradDiff run or real unlearning has been performed.
 
 ## Local ML Environment Smoke Test
 
