@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "directory": "outputs/local_synthetic_unlearning/unlearning-task70-001",
+  "files_sha256": {
+    "COMPLETE.json": "437cb808056d6fccd4f5ad3642ed334da14c48f0299cffe171022af43c462db0",
+    "RUNNING.json": "726fb227722013a4f668d8b286ef8f20d038685c19f6be1e4c127e086471cde9",
+    "gradient_difference/checkpoint-000020/COMPLETE.json": "da9fb0918775b9a66351ad9f9783335e25583129f8c997627b10152c70f73a9a",
+    "gradient_difference/checkpoint-000020/config.json": "569161ce5523c8424a2485fd00be359a1881e087f23c86cd336bb1b107e1fb89",
+    "gradient_difference/checkpoint-000020/metrics.json": "e501b318e4427405eb7948f17ed88661b04e0da687b135262c7398c39dbede01",
+    "gradient_difference/checkpoint-000020/model.safetensors": "9d00ee981f670582699e9b57020a9dc708cbb3c82f70d82b95adbc806445191a",
+    "gradient_difference-before.json": "bf0a8c8a97679c59e570651d825b2580165414cbc753b6072e46bd10db1bac1d",
+    "gradient_difference-step-005.json": "ae7454a6d3c18100fe38330bd07eb58ad9d469bc76fa78543d0c24e987b8902e",
+    "gradient_difference-step-010.json": "5f60bfd9cfb622e4f71cccd11379ad0a6b99d2264691ad63ae2bd1e92e2630e1",
+    "gradient_difference-step-015.json": "fff1688aef3dbee0716e5537a25e1670da6e091eced1c181a58bde17614b09a5",
+    "gradient_difference-step-020.json": "3914139c2f677c1d9fb6e55f4e07e8ec90bc2447a0ac1b16156ae1e86e8e6c48",
+    "noop/checkpoint-000000/COMPLETE.json": "260694641ab584e185aa9a452ad1627a70325397be5288873dd9f93dd382d9e1",
+    "noop/checkpoint-000000/config.json": "569161ce5523c8424a2485fd00be359a1881e087f23c86cd336bb1b107e1fb89",
+    "noop/checkpoint-000000/metrics.json": "61214d6ce4c34c5150181e36657df8316de311f6b9fdf224d970f233b9329094",
+    "noop/checkpoint-000000/model.safetensors": "fdaaf3ab932db016dec2361210240fca62c1aaf165273444fcc7aa5bbda910b2",
+    "noop-before.json": "bf0a8c8a97679c59e570651d825b2580165414cbc753b6072e46bd10db1bac1d",
+    "report.json": "5c047bd4c5c4d221e501764bd17ad321b562d0d61d2c17d698fe8930571e9241",
+    "retain_only/checkpoint-000020/COMPLETE.json": "ea44c5f421f205babb4941a12b3df5ef64f68ed88f8662c3769049869d6f4fc0",
+    "retain_only/checkpoint-000020/config.json": "569161ce5523c8424a2485fd00be359a1881e087f23c86cd336bb1b107e1fb89",
+    "retain_only/checkpoint-000020/metrics.json": "585b3abd783fafe34bdb7d48e1fbd98f8aadefdc08a6d5172f5fa943b03ed9c9",
+    "retain_only/checkpoint-000020/model.safetensors": "8fc09ef2e900d830c0b7b4384a8db0f2aa267e6a07d5bf32e3d794381269d941",
+    "retain_only-before.json": "bf0a8c8a97679c59e570651d825b2580165414cbc753b6072e46bd10db1bac1d",
+    "retain_only-step-005.json": "54bc9879b76625adf6c2791d1a5a269b2675bef33a19cacec49a71c7c3d2bf3b",
+    "retain_only-step-010.json": "2cbfc51cc83190aa748fc0d6ab3850158424113ea32dfadd0c7fa9bba0aac794",
+    "retain_only-step-015.json": "a2cad374aeac1d7b3323b43890c4fce4212b9b5a244964a1b56e6e602d794ca5",
+    "retain_only-step-020.json": "66aa466eff4ca41c133be48aa0f5480b30b553ea17c96a314766609373132129"
+  }
+}
