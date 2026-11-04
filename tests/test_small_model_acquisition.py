@@ -18,6 +18,8 @@ import torch
 
 from src import small_model_acquisition as a
 
+REAL_MONITOR = a.PilotMonitor
+
 
 def sample(stage="baseline"):
     return {"stage": stage, "timestamp_ns": time.monotonic_ns() - 1_000_000,
@@ -76,6 +78,15 @@ raise SystemExit(main([]))
                 a.main(argv)
             self.assertEqual(exc.exception.code, 2)
 
+    def test_baseline_rejects_all_update_arguments_before_any_work(self):
+        for kwargs in ({"enabled": True}, {"authorization": a.AUTHORIZATION},
+                       {"run_path": a.RUNS / "pilot-new"},
+                       {"baseline_path": a.RUNS / "baseline.json"}, {"baseline_sha256": "a" * 64}):
+            with self.subTest(kwargs=kwargs), mock.patch.object(a, "frozen_manifest") as frozen:
+                with self.assertRaises(ValueError):
+                    a.run(mode="baseline", report_path=a.RUNS / "never.json", **kwargs)
+                frozen.assert_not_called()
+
     def test_model_specific_policy_no_llama_admission(self):
         p = a.memory_policy(self.profile)
         self.assertEqual(p["preload_available_required_bytes"], 24 * a.GIB)
@@ -84,6 +95,101 @@ raise SystemExit(main([]))
         self.profile["model"]["repo_id"] = "meta-llama/Llama-3.2-1B-Instruct"
         with self.assertRaises(ValueError):
             a.memory_policy(self.profile)
+
+    def test_training_policy_matches_entire_frozen_task38_audit(self):
+        audit = json.loads((a.ROOT / "experiments/smollm2_task38_evidence_audit.json").read_text())
+        self.assertEqual(a.memory_policy(self.profile), audit["new_policy"])
+        for peak in (0, a.GIB, 3 * a.GIB):
+            self.assertEqual(a.admission_policy(self.profile, peak, mode="pilot"),
+                             a.memory_policy(self.profile, peak))
+
+    def test_baseline_budget_is_estimated_bounded_and_not_training_admission(self):
+        p = a.baseline_memory_policy(self.profile)
+        self.assertEqual(p["guard_id"], a.BASELINE_GUARD_ID)
+        self.assertEqual(p["preload_available_required_bytes"], 18 * a.GIB)
+        self.assertEqual(p["estimated_incremental_total_bytes"], 12620658888)
+        self.assertEqual(p["max_optimizer_steps"], 0)
+        self.assertIsNone(p["baseline_process_peak_rss_bytes"])
+        for key in ("backward_permitted", "training_authorized", "measured_model_requirement", "use_cache"):
+            self.assertIs(p[key], False)
+        self.assertNotIn("fp32_gradients", p["estimated_incremental_terms_bytes"])
+        self.assertNotIn("clipping_step_serialization_allowance", p["estimated_incremental_terms_bytes"])
+        self.assertEqual(a.baseline_memory_policy(self.profile, 3 * a.GIB)["preload_available_required_bytes"], 20 * a.GIB)
+        for peak in (-1, True, 1.0):
+            with self.subTest(peak=peak), self.assertRaises(ValueError):
+                a.baseline_memory_policy(self.profile, peak)
+        with self.assertRaises(ValueError):
+            a.admission_policy(self.profile, mode="unknown")
+        self.profile["model"]["repo_id"] = "meta-llama/Llama-3.2-1B-Instruct"
+        with self.assertRaises(ValueError):
+            a.baseline_memory_policy(self.profile)
+
+    def test_exact_preload_continuing_and_cap_boundaries_in_both_modes(self):
+        for mode, minimum in (("baseline", 18), ("pilot", 24)):
+            for peak, extra in ((a.GIB, 0), (3 * a.GIB, 2)):
+                reading = {**sample(), "process_peak_rss_bytes": peak,
+                           "available_physical_memory_lower_bound_bytes": (minimum + extra) * a.GIB}
+                a.validate_sample(reading, profile=self.profile, mode=mode, before_load=True)
+                reading["available_physical_memory_lower_bound_bytes"] -= 1
+                with self.subTest(mode=mode, peak=peak), self.assertRaises(RuntimeError):
+                    a.validate_sample(reading, profile=self.profile, mode=mode, before_load=True)
+            reading = {**sample(), "available_physical_memory_lower_bound_bytes": 6 * a.GIB,
+                       "process_peak_rss_bytes": 8 * a.GIB, "mps_driver_allocated_bytes": 8 * a.GIB}
+            a.validate_sample(reading, profile=self.profile, mode=mode)
+            reading["available_physical_memory_lower_bound_bytes"] -= 1
+            with self.assertRaises(RuntimeError):
+                a.validate_sample(reading, profile=self.profile, mode=mode)
+        reading = {**sample(), "available_physical_memory_lower_bound_bytes": 18 * a.GIB}
+        a.validate_sample(reading, profile=self.profile, mode="baseline", before_load=True)
+        # Omitting mode must still select the original, stricter training policy.
+        with self.assertRaises(RuntimeError):
+            a.validate_sample(reading, profile=self.profile, before_load=True)
+
+    def test_baseline_retains_every_common_telemetry_stop(self):
+        bad = {"available_physical_memory_lower_bound_bytes": 6 * a.GIB - 1,
+               "total_physical_memory_bytes": 48 * a.GIB - 1,
+               "macos_pressure_level": 2, "system_memory_free_percentage": 19,
+               "process_peak_rss_bytes": 8 * a.GIB + 1,
+               "mps_driver_allocated_bytes": 8 * a.GIB + 1,
+               "timestamp_ns": 1, "sample_duration_ns": 0,
+               "mps_tensor_allocated_bytes": 201, "pageouts": None,
+               "swap_used_bytes": 1}
+        for mode in ("baseline", "pilot"):
+            for key, value in bad.items():
+                with self.subTest(mode=mode, key=key), self.assertRaises(RuntimeError):
+                    a.validate_sample({**sample(), key: value}, profile=self.profile, mode=mode, first=sample())
+            for key in ("pageouts", "swap_used_bytes"):
+                with self.assertRaises(RuntimeError):
+                    a.validate_sample({**sample(), key: 1}, profile=self.profile, mode=mode, first=sample())
+            reading = sample()
+            for timestamp in (reading["timestamp_ns"], reading["timestamp_ns"] - 2_000_000_001):
+                with self.assertRaises(RuntimeError):
+                    a.validate_sample(reading, profile=self.profile, mode=mode, active=True,
+                                      previous={**reading, "timestamp_ns": timestamp})
+            with self.assertRaises(RuntimeError):
+                a.validate_sample({**sample(), "timestamp_ns": time.monotonic_ns() + 1_000_000_000},
+                                  profile=self.profile, mode=mode)
+
+    def test_monitor_dispatch_is_explicit_and_unknown_devices_or_modes_stop(self):
+        reading = {**sample(), "available_physical_memory_lower_bound_bytes": 18 * a.GIB}
+        for mode in ("baseline", "pilot"):
+            monitor = a.PilotMonitor(None, profile=self.profile, device="mps", mode=mode)
+            with mock.patch.object(a.telemetry, "read_sample", return_value=reading):
+                if mode == "baseline":
+                    monitor.capture("baseline", before_load=True)
+                else:
+                    with self.assertRaises(RuntimeError):
+                        monitor.capture("baseline", before_load=True)
+            self.assertEqual(monitor.samples, [reading])  # retain failing evidence too
+            monitor.started -= a.MAX_SECONDS + 1
+            with self.assertRaises(RuntimeError):
+                monitor.capture("timeout")
+            monitor.error = RuntimeError("watchdog failed")
+            with self.assertRaises(RuntimeError):
+                monitor.check()
+        for device, mode in (("cpu", "baseline"), ("mps", "unknown")):
+            with self.assertRaises((ValueError, RuntimeError)):
+                a.PilotMonitor(None, profile=self.profile, device=device, mode=mode)
 
     def test_memory_failures(self):
         a.validate_sample(sample(), profile=self.profile, before_load=True)
@@ -206,7 +312,7 @@ class SimulatedSGD:
 class StepTests(unittest.TestCase):
     def setUp(self):
         self.model = FakeModel()
-        self.monitor = SimpleNamespace(boundary=mock.Mock())
+        self.monitor = SimpleNamespace(boundary=mock.Mock(), mode="pilot")
         self.report = {"optimizer_steps": 0, "step_attempted": False}
         SimulatedSGD.calls = 0
         self.loss = SimpleNamespace(requires_grad=True, item=lambda: 2.0,
@@ -241,6 +347,15 @@ class StepTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             self.step()
         self.assertEqual(SimulatedSGD.calls, 1)
+
+    def test_baseline_monitor_cannot_reach_backward_or_optimizer_even_with_authorization(self):
+        self.monitor.mode = "baseline"
+        with mock.patch.object(a, "checked_loss") as loss, self.assertRaises(RuntimeError):
+            self.step()
+        loss.assert_not_called()
+        self.monitor.boundary.assert_not_called()
+        self.assertEqual(SimulatedSGD.calls, 0)
+        self.assertEqual(self.model.weight.value, 1.0)
 
     def test_failures_before_step_never_update(self):
         for stage in ("before_training_forward", "before_backward", "after_backward", "after_clipping", "before_optimizer_step"):
@@ -367,11 +482,19 @@ class OrchestrationTests(unittest.TestCase):
                      baseline_path=path, baseline_sha256=a.sha256_file(path), enabled=True, authorization=a.AUTHORIZATION)
 
     def test_baseline_sealed_before_updates_and_no_checkpoint_call(self):
-        path, report = self.baseline()
+        with mock.patch.object(a, "one_step", side_effect=AssertionError("baseline reached training")) as step:
+            path, report = self.baseline()
+        step.assert_not_called()
+        a.PilotMonitor.assert_called_once_with(sys.modules["torch"], profile=json.loads(a.PROFILE.read_text()),
+                                               device="mps", mode="baseline")
         a.validate_baseline(report, self.manifest)
         self.assertEqual(path.stat().st_mode & 0o222, 0)
         self.model.save_pretrained.assert_not_called()
         self.assertEqual(report["optimizer_steps"], 0)
+        self.model.requires_grad_.assert_called_once_with(False)
+        self.model.train.assert_not_called()
+        self.model.gradient_checkpointing_enable.assert_not_called()
+        self.assertEqual(report["memory_policy"]["guard_id"], a.BASELINE_GUARD_ID)
         for key, value in (("optimizer_steps", 1), ("parameters_unchanged", False),
                            ("manifest_file_sha256", "0" * 64), ("actual_device", "cpu")):
             with self.subTest(key=key), self.assertRaises(ValueError):
@@ -380,6 +503,87 @@ class OrchestrationTests(unittest.TestCase):
         broken["evaluation"].pop()
         with self.assertRaises(ValueError):
             a.validate_baseline(broken, self.manifest)
+
+    def test_baseline_rejects_training_policy_or_unsafe_recorded_admission(self):
+        _, report = self.baseline()
+        profile = json.loads(a.PROFILE.read_text())
+        changed = copy.deepcopy(report)
+        changed["memory_policy"] = a.memory_policy(profile)
+        with self.assertRaises(ValueError):
+            a.validate_baseline(changed, self.manifest)
+        for stage in ("baseline", "before_load"):
+            changed = copy.deepcopy(report)
+            next(s for s in changed["measurements"] if s["stage"] == stage)["available_physical_memory_lower_bound_bytes"] = 18 * a.GIB - 1
+            with self.assertRaises(ValueError):
+                a.validate_baseline(changed, self.manifest)
+        for key, value in (("max_optimizer_steps", 1), ("backward_permitted", True),
+                           ("preload_available_required_bytes", 0)):
+            changed = copy.deepcopy(report)
+            changed["memory_policy"][key] = value
+            with self.assertRaises(ValueError):
+                a.validate_baseline(changed, self.manifest)
+        for kind in ("capacity", "gap", "preload"):
+            changed = copy.deepcopy(report)
+            if kind == "capacity":
+                changed["measurements"][-1]["total_physical_memory_bytes"] += a.GIB
+            elif kind == "gap":
+                changed["measurements"][-1]["timestamp_ns"] += 3_000_000_000
+            else:
+                changed["measurements"][0]["stage"] = "missing_preload"
+            with self.subTest(kind=kind), self.assertRaises(ValueError):
+                a.validate_baseline(changed, self.manifest)
+
+    def test_each_real_preload_gate_stops_before_model_load(self):
+        # Exercise the actual monitor/dispatcher, without starting its thread.
+        for fail_at in (0, 1):
+            a.telemetry.ensure_checkpoint.reset_mock()
+            readings = [sample("baseline"), sample("before_load")]
+            readings[fail_at]["available_physical_memory_lower_bound_bytes"] = 18 * a.GIB - 1
+            with self.subTest(fail_at=fail_at), mock.patch.object(a, "PilotMonitor", REAL_MONITOR), \
+                    mock.patch.object(a.telemetry, "read_sample", side_effect=readings), \
+                    mock.patch.object(a, "one_step") as step:
+                report = a.run(mode="baseline", report_path=self.root / f"preload-{fail_at}.json")
+            self.assertEqual(report["status"], "STOP")
+            self.assertIn("18 GiB", report["error"])
+            self.assertFalse(report["model_loaded"])
+            self.assertFalse(report["optimizer_created"])
+            self.assertFalse((self.root / f"preload-{fail_at}.json").exists())
+            self.assertEqual(a.telemetry.ensure_checkpoint.call_count, fail_at)
+            step.assert_not_called()
+        sys.modules["transformers"].AutoModelForCausalLM.from_pretrained.assert_not_called()
+
+    def test_pilot_still_stops_at_18_gib_with_valid_baseline_and_authorization(self):
+        path, _ = self.baseline()
+        sys.modules["transformers"].AutoModelForCausalLM.from_pretrained.reset_mock()
+        reading = {**sample(), "available_physical_memory_lower_bound_bytes": 18 * a.GIB}
+        with mock.patch.object(a, "PilotMonitor", REAL_MONITOR), \
+                mock.patch.object(a.telemetry, "read_sample", return_value=reading), \
+                mock.patch.object(a, "one_step") as step:
+            report = self.pilot(path)
+        self.assertEqual(report["status"], "STOP")
+        self.assertIn("24 GiB", report["error"])
+        self.assertEqual(report["memory_policy"]["guard_id"], a.GUARD_ID)
+        sys.modules["transformers"].AutoModelForCausalLM.from_pretrained.assert_not_called()
+        step.assert_not_called()
+
+    def test_baseline_detects_parameter_hash_or_version_drift_and_never_saves(self):
+        for kind in ("hash", "version"):
+            self.monitor.samples.clear()
+            parameter = SimpleNamespace(_version=0)
+            self.model.parameters.return_value = [parameter]
+            def evaluation(*args):
+                if kind == "version":
+                    parameter._version += 1  # mock counter only; no tensor/weight mutation
+                return self.rows
+            with mock.patch.object(a, "evaluate", side_effect=evaluation), \
+                    mock.patch.object(a, "parameter_fingerprint", side_effect=["a" * 64, ("b" if kind == "hash" else "a") * 64]), \
+                    mock.patch.object(a, "one_step") as step:
+                report = a.run(mode="baseline", report_path=self.root / f"drift-{kind}.json")
+            self.assertEqual(report["status"], "STOP")
+            self.assertIn("changed weights", report["error"])
+            self.assertEqual(report["optimizer_steps"], 0)
+            step.assert_not_called()
+            self.model.save_pretrained.assert_not_called()
 
     def test_load_failure_stops_and_never_updates_or_saves(self):
         with mock.patch.object(sys.modules["transformers"].AutoModelForCausalLM, "from_pretrained", side_effect=RuntimeError("OOM")), \
@@ -508,12 +712,14 @@ class EvaluationTests(unittest.TestCase):
             def argmax(self):
                 return SimpleNamespace(item=lambda: next(next_ids))
         def forward(**kwargs):
+            self.assertTrue(torch.is_inference_mode_enabled())
+            self.assertFalse(torch.is_grad_enabled())
             prompts.append(copy.deepcopy(kwargs["input_ids"].values))
             return SimpleNamespace(logits=Logits(), past_key_values=None)
         model = mock.Mock(side_effect=forward)
         model.training = False
         model.parameters.return_value = []
-        runtime = SimpleNamespace(inference_mode=contextlib.nullcontext, long="long", float32="float32",
+        runtime = SimpleNamespace(inference_mode=torch.inference_mode, long="long", float32="float32",
             tensor=lambda values, **kwargs: Ids(values), ones_like=lambda ids: None,
             cat=lambda ids, **kwargs: Ids([ids[0].values[0] + ids[1].values[0]]),
             isfinite=lambda logits: SimpleNamespace(all=lambda: SimpleNamespace(item=lambda: True)))
@@ -522,14 +728,39 @@ class EvaluationTests(unittest.TestCase):
         example = SimpleNamespace(input_ids=(11, 22, 99, 100), assistant_target_start=2)
         tokenizer = SimpleNamespace(eos_token_id=0, decode=lambda tokens, **kwargs: "dkqqudhttrnz")
         monitor = SimpleNamespace(boundary=mock.Mock(), check=mock.Mock())
-        with mock.patch.object(a, "checked_loss", return_value=SimpleNamespace(item=lambda: 2.0)), \
-                mock.patch("src.graddiff_integration.collate_causal_examples", return_value={}):
+        loss = SimpleNamespace(item=lambda: 2.0, requires_grad=False,
+                               backward=mock.Mock(side_effect=AssertionError("baseline called backward")))
+        with mock.patch.object(a, "checked_loss", return_value=loss), \
+                mock.patch("src.graddiff_integration.collate_causal_examples", return_value={}), \
+                mock.patch.object(torch.optim, "SGD", side_effect=AssertionError("baseline created SGD")) as sgd, \
+                mock.patch.object(torch.optim, "AdamW", side_effect=AssertionError("baseline created AdamW")) as adam, \
+                mock.patch.object(torch.Tensor, "backward", side_effect=AssertionError("baseline called backward")) as backward:
             rows = a.evaluate(model, tokenizer, {case["id"]: example}, {"evaluation": [case]},
                               runtime, SimpleNamespace(type="mps"), monitor)
+            sgd.assert_not_called()
+            adam.assert_not_called()
+            backward.assert_not_called()
+        loss.backward.assert_not_called()
         self.assertEqual(tuple(prompts[0][0]), (11, 22))
         self.assertEqual(tuple(prompts[1][0]), (11, 22, 7))
         self.assertTrue(rows[0]["alias_recovery"])
         self.assertEqual(rows[0]["generated_tokens"], 1)
+
+        for training, requires_grad, grad, device in ((True, False, None, "mps"),
+                                                     (False, True, None, "mps"),
+                                                     (False, False, object(), "mps"),
+                                                     (False, False, None, "cpu")):
+            model.training = training
+            model.parameters.return_value = [SimpleNamespace(requires_grad=requires_grad, grad=grad)]
+            with self.subTest(training=training, requires_grad=requires_grad, device=device), self.assertRaises(RuntimeError):
+                a.evaluate(model, tokenizer, {}, {}, runtime, SimpleNamespace(type=device), monitor)
+
+        model.training = False
+        model.parameters.return_value = []
+        with mock.patch.object(a, "checked_loss", return_value=SimpleNamespace(requires_grad=True)), \
+                mock.patch("src.graddiff_integration.collate_causal_examples", return_value={}), self.assertRaises(RuntimeError):
+            a.evaluate(model, tokenizer, {case["id"]: example}, {"evaluation": [case]},
+                       runtime, SimpleNamespace(type="mps"), monitor)
 
 
 if __name__ == "__main__":

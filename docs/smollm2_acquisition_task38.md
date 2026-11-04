@@ -1,5 +1,12 @@
 # Task 38: guarded SmolLM2 development acquisition pilot
 
+**Task 39 baseline admission update:** the [baseline investigation and retry
+command](smollm2_baseline_admission_task39.md) separate the frozen 76-case
+baseline from training admission. Its estimated minimum preload is now
+18 GiB with generation headroom; the one-step pilot retains its original
+24 GiB minimum and every update safeguard. Historical Task 38 policy/evidence
+below describe the original shared guard. No new physical run is claimed.
+
 **Prepared, conditional; not yet ready to execute an optimizer step.** The
 one-step runner and frozen evaluation manifest are implemented and tested
 offline. A real immutable base-model evaluation has **not** been performed in

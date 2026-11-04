@@ -40,6 +40,7 @@ SOURCES = {
 }
 RUNS = ROOT / "outputs/smollm2_acquisition_task38"
 GUARD_ID = "smollm2_135m_fp32_mps_dev_one_sgd_step_v1"
+BASELINE_GUARD_ID = "smollm2_135m_fp32_mps_dev_baseline_v1"
 AUTHORIZATION = "SmolLM2-135M:development:one-SGD-step"
 LR = 0.0001
 MAX_TOKENS = 128
@@ -98,7 +99,7 @@ def frozen_manifest() -> dict[str, Any]:
 
 
 def memory_policy(profile: Mapping[str, Any], baseline_peak: int = 0) -> dict[str, Any]:
-    """New narrow admission policy, estimated conservatively, not calibrated fit."""
+    """Unchanged Task 38 training admission; never inferred from baseline fit."""
     select_memory_guard(profile)
     if type(baseline_peak) is not int or baseline_peak < 0:
         raise ValueError("invalid baseline RSS")
@@ -118,22 +119,58 @@ def memory_policy(profile: Mapping[str, Any], baseline_peak: int = 0) -> dict[st
             "continuing_available_required_bytes": 6 * GIB, "minimum_total_host_bytes": 48 * GIB,
             "max_process_peak_rss_bytes": 8 * GIB, "max_mps_driver_bytes": 8 * GIB,
             "calibrated_training_requirement": False,
+            # Retain legacy metadata for comparison with the immutable Task 38 audit.
+            # admission_policy now selects this guard exclusively for pilot mode.
             "scope": "Task38 baseline and development one-step pilot only; no longer-run admission"}
+
+
+def baseline_memory_policy(profile: Mapping[str, Any], baseline_peak: int | None = None) -> dict[str, Any]:
+    """Task 27 frozen-forward estimate plus headroom for sequential generation.
+
+    No autograd graph, gradients, optimizer, KV cache or weight serialization.
+    The extra 2 GiB is an uncalibrated allowance for repeated forwards/Metal
+    caching, not a claim that the 76-case evaluator has been measured.
+    """
+    if baseline_peak is not None and (type(baseline_peak) is not int or baseline_peak < 0):
+        raise ValueError("invalid baseline RSS")
+    policy = telemetry.readonly_memory_policy(profile, device="mps",
+                                             baseline_peak_rss_bytes=baseline_peak)
+    terms = {**policy["estimated_incremental_terms_bytes"],
+             "sequential_generation_allowance_estimate": 2 * GIB}
+    incremental = sum(terms.values())
+    return {**policy, "guard_id": BASELINE_GUARD_ID,
+            "scope": "frozen_76_case_development_baseline_only",
+            "max_sequence_length": MAX_TOKENS, "max_new_tokens": MAX_NEW_TOKENS,
+            "evaluation_cases": 76, "max_optimizer_steps": 0, "backward_permitted": False,
+            "estimated_incremental_terms_bytes": terms,
+            "estimated_incremental_total_bytes": incremental,
+            "preload_available_required_bytes": 6 * GIB + ((incremental + GIB - 1) // GIB) * GIB,
+            "max_process_peak_rss_bytes": 8 * GIB, "max_mps_driver_bytes": 8 * GIB}
+
+
+def admission_policy(profile: Mapping[str, Any], baseline_peak: int | None = None, *, mode: str) -> dict[str, Any]:
+    if mode == "baseline":
+        return baseline_memory_policy(profile, baseline_peak)
+    if mode == "pilot":
+        return memory_policy(profile, 0 if baseline_peak is None else baseline_peak)
+    raise ValueError("unsupported admission mode")
 
 
 def validate_sample(sample: Mapping[str, Any], *, profile: Mapping[str, Any],
                     before_load: bool = False, previous: Mapping[str, Any] | None = None,
-                    first: Mapping[str, Any] | None = None, active: bool = False) -> None:
+                    first: Mapping[str, Any] | None = None, active: bool = False,
+                    mode: str = "pilot") -> None:
     telemetry._validate_reading(sample)  # direct counter validity; no Llama guard
     now = time.monotonic_ns()
     if not sample["timestamp_ns"] + sample["sample_duration_ns"] <= now <= sample["timestamp_ns"] + 2_000_000_000:
         raise RuntimeError("stale/future telemetry")
-    policy = memory_policy(profile, sample["process_peak_rss_bytes"])
+    policy = admission_policy(profile, sample["process_peak_rss_bytes"], mode=mode)
     if before_load and sample["available_physical_memory_lower_bound_bytes"] < policy["preload_available_required_bytes"]:
-        raise RuntimeError("SmolLM2 pilot preload floor failed (minimum 24 GiB)")
+        required = policy["preload_available_required_bytes"] // GIB
+        raise RuntimeError(f"SmolLM2 {mode} preload floor failed ({required} GiB available required)")
     if (sample["process_peak_rss_bytes"] > policy["max_process_peak_rss_bytes"]
             or sample["mps_driver_allocated_bytes"] > policy["max_mps_driver_bytes"]):
-        raise RuntimeError("pilot RSS/driver 8 GiB stop cap exceeded")
+        raise RuntimeError("RSS/driver 8 GiB stop cap exceeded")
     if previous is not None:
         gap = sample["timestamp_ns"] - previous["timestamp_ns"]
         if gap <= 0 or (active and gap > 2_000_000_000):
@@ -148,12 +185,13 @@ def validate_sample(sample: Mapping[str, Any], *, profile: Mapping[str, Any],
 class PilotMonitor(telemetry.Monitor):
     """Reuse collection only. Capture and time budget use this policy exclusively."""
 
-    def __init__(self, torch: Any, *, profile: Mapping[str, Any], device: str):
+    def __init__(self, torch: Any, *, profile: Mapping[str, Any], device: str, mode: str = "pilot"):
         if device != "mps":
             raise RuntimeError("pilot requires MPS")
         # Parent initializes collection primitives; its read-only policy is not admission.
         super().__init__(torch, profile=profile, device=device)
-        memory_policy(profile)
+        admission_policy(profile, mode=mode)
+        self.mode = mode
         self.started = time.monotonic()
 
     def capture(self, stage: str, *, before_load: bool = False) -> dict[str, Any]:
@@ -166,7 +204,7 @@ class PilotMonitor(telemetry.Monitor):
             first = self.samples[0] if self.samples else None
             self.samples.append(sample)
             validate_sample(sample, profile=self.profile, before_load=before_load,
-                            previous=previous, first=first, active=self.thread is not None)
+                            previous=previous, first=first, active=self.thread is not None, mode=self.mode)
             return sample
 
     def _loop(self) -> None:
@@ -275,6 +313,8 @@ def one_step(model: Any, batch: Mapping[str, Any], torch: Any, monitor: Any,
              enabled: bool, authorization: str | None) -> None:
     """Single update boundary; all preconditions repeat immediately before step."""
     require_authorization(enabled, authorization)
+    if monitor.mode != "pilot":
+        raise RuntimeError("optimizer requires separate pilot memory admission")
     if report.get("optimizer_steps") != 0 or report.get("step_attempted") is not False:
         raise RuntimeError("one-step budget already consumed")
     validate_backward_model(model, torch, profile)
@@ -346,7 +386,7 @@ def evaluate(model: Any, tokenizer: Any, examples: Mapping[str, Any], manifest: 
              torch: Any, device: Any, monitor: Any) -> list[dict[str, Any]]:
     """Sequential answer NLL + greedy generation from question ONLY, no KV cache."""
     from src.graddiff_integration import collate_causal_examples
-    if model.training or any(p.requires_grad or p.grad is not None for p in model.parameters()):
+    if device.type != "mps" or model.training or any(p.requires_grad or p.grad is not None for p in model.parameters()):
         raise RuntimeError("evaluation requires frozen eval model and no gradients")
     rows = []
     with torch.inference_mode():
@@ -355,7 +395,11 @@ def evaluate(model: Any, tokenizer: Any, examples: Mapping[str, Any], manifest: 
             monitor.boundary("before_" + monitor.stage)
             example = examples[row["id"]]
             batch = collate_causal_examples([example], tokenizer, device=device, max_sequence_length=MAX_TOKENS)
-            nll = float(checked_loss(model, batch, torch).item())
+            loss = checked_loss(model, batch, torch)
+            if loss.requires_grad:
+                raise RuntimeError("evaluation loss must not have an autograd graph")
+            nll = float(loss.item())
+            del loss, batch
             ids = torch.tensor([example.input_ids[:example.assistant_target_start]], dtype=torch.long, device=device)
             generated = []
             for _ in range(MAX_NEW_TOKENS):
@@ -418,18 +462,32 @@ def validate_baseline(report: Mapping[str, Any], manifest: Mapping[str, Any]) ->
             raise ValueError("baseline recovery metric mismatch")
     if not report["measurements"] or report["peaks"]["sample_count"] != len(report["measurements"]):
         raise ValueError("missing baseline memory evidence")
-    if report["memory_policy"]["guard_id"] != GUARD_ID:
-        raise ValueError("baseline used another memory guard")
+    profile = json.loads(PROFILE.read_text())
+    preloads = [s for s in report["measurements"] if s["stage"] in ("baseline", "before_load")]
+    if [s["stage"] for s in preloads] != ["baseline", "before_load"]:
+        raise ValueError("baseline requires two preload observations")
+    if report["memory_policy"] != baseline_memory_policy(profile, preloads[-1]["process_peak_rss_bytes"]):
+        raise ValueError("baseline used another memory policy")
+    for sample in preloads:
+        if sample["available_physical_memory_lower_bound_bytes"] < baseline_memory_policy(
+                profile, sample["process_peak_rss_bytes"])["preload_available_required_bytes"]:
+            raise ValueError("baseline preload evidence below required floor")
     if not re.fullmatch(r"[0-9a-f]{64}", report["encoding_sha256"]):
         raise ValueError("missing baseline encoding provenance")
     previous = None
+    first = report["measurements"][0]
     for sample in report["measurements"]:
         telemetry._validate_reading(sample)
-        if (sample["swap_used_bytes"] > report["measurements"][0]["swap_used_bytes"]
-                or sample["pageouts"] != report["measurements"][0]["pageouts"]
+        if previous is not None:
+            gap = sample["timestamp_ns"] - previous["timestamp_ns"]
+            active = previous["timestamp_ns"] >= preloads[-1]["timestamp_ns"]
+            if gap <= 0 or (active and gap > 2_000_000_000):
+                raise ValueError("unsafe baseline sampling gap")
+        if (sample["total_physical_memory_bytes"] != first["total_physical_memory_bytes"]
+                or sample["swap_used_bytes"] > first["swap_used_bytes"]
+                or sample["pageouts"] != first["pageouts"]
                 or sample["process_peak_rss_bytes"] > 8 * GIB
-                or sample["mps_driver_allocated_bytes"] > 8 * GIB
-                or (previous is not None and sample["timestamp_ns"] <= previous["timestamp_ns"])):
+                or sample["mps_driver_allocated_bytes"] > 8 * GIB):
             raise ValueError("unsafe baseline memory evidence")
         previous = sample
     if not {"baseline", "before_load", "after_load", "complete"} <= {s["stage"] for s in report["measurements"]}:
@@ -446,6 +504,7 @@ def validation_plan() -> dict[str, Any]:
             "training_cases": len(manifest["training"]), "evaluation_cases": len(manifest["evaluation"]),
             "pilot_case_id": manifest["epoch_zero_order"][0], "checkpoint": checkpoint,
             "memory_policy": memory_policy(json.loads(PROFILE.read_text())),
+            "baseline_memory_policy": baseline_memory_policy(json.loads(PROFILE.read_text())),
             "blockers": ["owner-run immutable baseline evaluation not performed in Task38",
                          "fresh M4 Pro MPS admission required", "explicit one-step authorization required"]}
 
@@ -500,14 +559,14 @@ def run(*, mode: str, report_path: Path, run_path: Path | None = None,
     device = telemetry.validate_environment(torch)
     if telemetry._command(["/usr/sbin/sysctl", "-n", "machdep.cpu.brand_string"]).strip() != "Apple M4 Pro":
         raise RuntimeError("Task38 policy is limited to Apple M4 Pro")
-    monitor = PilotMonitor(torch, profile=profile, device=device.type)
+    monitor = PilotMonitor(torch, profile=profile, device=device.type, mode=mode)
     report: dict[str, Any] = {
         "schema_version": "1.0", "status": "STOP", "mode": mode, "model_id": MODEL_ID,
         "revision": REVISION, "manifest_file_sha256": MANIFEST_SHA256, "precision": "float32",
         "downloads_enabled": False, "optimizer_created": False, "optimizer_steps": 0,
         "step_attempted": False, "checkpoint_writes": 0, "base_checkpoint_unchanged": False,
         "model_loaded": False, "actual_device": None, "training_authorized": mode == "pilot",
-        "memory_policy": memory_policy(profile), "baseline_file_sha256": baseline_sha256,
+        "memory_policy": admission_policy(profile, mode=mode), "baseline_file_sha256": baseline_sha256,
         "environment": {**telemetry.VERSIONS, "os": platform.mac_ver()[0], "machine": platform.machine()},
         "runner_sha256": sha256_file(Path(__file__)), "seed": 2026, "deterministic_algorithms": True,
     }
@@ -532,7 +591,7 @@ def run(*, mode: str, report_path: Path, run_path: Path | None = None,
         if baseline is not None and report["encoding_sha256"] != baseline["encoding_sha256"]:
             raise ValueError("baseline encoding drift")
         sample = monitor.capture("before_load", before_load=True)
-        report["memory_policy"] = memory_policy(profile, sample["process_peak_rss_bytes"])
+        report["memory_policy"] = admission_policy(profile, sample["process_peak_rss_bytes"], mode=mode)
         if shutil.disk_usage(ROOT).free < 4 * GIB:
             raise RuntimeError("requires 4 GiB free disk before model load")
         # Reserve names exclusively before load. Failed directories remain tombstones.
@@ -588,6 +647,7 @@ def run(*, mode: str, report_path: Path, run_path: Path | None = None,
         report["evaluation"] = evaluate(model, tokenizer, examples, manifest, torch, device, monitor)
         after_eval = parameter_fingerprint(model)
         if baseline is None:
+            telemetry.validate_model(model, torch, profile, device="mps")
             report["parameter_sha256_after"] = after_eval
             report["parameters_unchanged"] = before == after_eval
             report["parameter_versions_unchanged"] = versions == tuple(p._version for p in model.parameters())
