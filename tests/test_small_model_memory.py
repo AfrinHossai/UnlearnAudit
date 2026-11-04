@@ -226,6 +226,36 @@ class SmallModelMemoryTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, "inherited Llama SGD"):
                     experiment.check_physical_mps_readiness()
 
+    @unittest.skipUnless(importlib.util.find_spec("torch"), "requires existing project ML environment")
+    def test_readonly_pass_does_not_authorize_backward_or_training(self):
+        from src import graddiff_real_train as runner
+        from src import small_model_preflight as readonly
+        policy = readonly.readonly_memory_policy(self.profile, device="mps", baseline_peak_rss_bytes=226738176)
+        self.assertEqual(policy["preload_available_required_bytes"], 16 * memory.GIB)
+        snapshot = {"total_physical_memory_bytes": 48 * memory.GIB,
+                    "available_physical_memory_lower_bound_bytes": 18 * memory.GIB,
+                    "system_memory_free_percentage": 95}
+        for optimizer in ("sgd", "adamw"):
+            # The shared gate used by both backward-only and update runners
+            # continues to reject an otherwise admitted read-only budget.
+            with self.subTest(optimizer=optimizer), self.assertRaises(RuntimeError):
+                runner.check_training_memory(snapshot, optimizer=optimizer, before_load=True)
+        with mock.patch.object(runner, "_run_real_model") as physical_runner:
+            for options in ([], ["--backward-only", "--apply-updates"]):
+                args = runner.build_parser().parse_args(options)
+                for entrypoint in (runner.run_real_updates, runner.run_real_backward_only):
+                    with self.subTest(options=options, entrypoint=entrypoint.__name__), self.assertRaises(ValueError):
+                        entrypoint(args)
+            physical_runner.assert_not_called()
+        report = memory.assess_memory(self.profile, self.policy)
+        self.assertFalse(self.profile["weight_updates_enabled"])
+        self.assertTrue(self.profile["safety"]["explicit_update_authorization_required"])
+        self.assertIsNone(self.profile["safety"]["training_entrypoint"])
+        self.assertIsNone(report["approved_small_model_threshold_bytes"])
+        self.assertEqual(report["active_before_load_available_bytes"], 32 * memory.GIB)
+        self.assertFalse(report["training_authorized"])
+        self.assertFalse(report["runtime_admission_allowed"])
+
 
 if __name__ == "__main__":
     unittest.main()

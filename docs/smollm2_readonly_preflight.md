@@ -1,6 +1,6 @@
-# Task 25: measured SmolLM2-135M read-only MPS preflight
+# SmolLM2-135M read-only MPS preflight (Tasks 25–27)
 
-**Ready for an owner-run normal Mac Terminal measurement, subject to the unchanged admission policy. No physical model measurement has been run during preparation. Training remains blocked and the approved small-model training threshold remains unset.**
+**Ready for an owner-run normal Mac Terminal measurement under the separate Task 27 read-only policy: at least 16 GiB available before load, increasing with a large measured baseline process. Training remains blocked and the approved small-model training threshold remains unset.** Task 26 stopped before checkpoint access at the inherited 32 GiB gate. No model-load/forward measurement was obtained. See the [Task 27 audit and budget](smollm2_readonly_admission_task27.md) for exact provenance, estimates, limits and offline validation.
 
 The separate [preflight](../src/small_model_preflight.py) defaults to a plan with no ML imports, network, model allocation or output file. `--run-preflight` enables one frozen FP32 MPS forward; only the additional `--allow-download` permits acquisition of missing official checkpoint files. It never calls backward, constructs an optimizer, updates parameters, generates a continuation or writes model checkpoints. The [Task 24 assessor](smollm2_memory_admission.md), original Llama guard, frozen experiment profile/manifest and existing training policies are unchanged.
 
@@ -23,16 +23,18 @@ Explicit acquisition uses the official HTTPS endpoint, exact revision and a six-
 
 ## Exact normal-Terminal command
 
-Use the existing project environment from a **fresh, normal macOS Terminal on Apple Silicon**. The program checks the pinned Torch 2.9.1, Transformers 4.57.1 and huggingface-hub 0.36.2 versions. Keep Activity Monitor visible. The command below explicitly allows the approximately 271 MB download **when you run it**; it was not executed during preparation:
+Use the existing project environment from a **fresh, normal macOS Terminal on Apple Silicon**. The program checks the pinned Torch 2.9.1, Transformers 4.57.1 and huggingface-hub 0.36.2 versions. Keep Activity Monitor visible. The command below explicitly allows the approximately 271 MB download **when you run it**; it was not executed during Task 27:
 
 ```sh
 cd ~/UnlearnGuard-Privacy-Leakage-Research
 mkdir -p outputs
 env -u HF_HUB_OFFLINE -u TRANSFORMERS_OFFLINE \
+  -u PYTORCH_MPS_HIGH_WATERMARK_RATIO -u PYTORCH_MPS_LOW_WATERMARK_RATIO \
+  -u PYTORCH_MPS_FAST_MATH -u PYTORCH_MPS_PREFER_METAL \
   PYTORCH_ENABLE_MPS_FALLBACK=0 TOKENIZERS_PARALLELISM=false \
   .venv-ml/bin/python -B -m src.small_model_preflight \
   --run-preflight --allow-download \
-  --report-path outputs/smollm2-readonly-task25-first.json
+  --report-path outputs/smollm2_readonly_task27_first.json
 ```
 
 If model/tokenizer acquisition is undesired, omit `--allow-download` and set `HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1`; the complete exact snapshot must already exist at the dedicated path. Other model caches are not silently reused. Use a **new report filename** for every invocation. Reports must be JSON files under an existing Git-ignored `outputs/` directory; existing files, symlink parents and paths outside that tree are rejected.
@@ -43,9 +45,9 @@ An exit code of **0** with `status="readonly_measurement_passed_not_training_cle
 
 ## Admission and bounded execution
 
-This is a separate physical read-only implementation, not a call to the Llama training runner. It preserves the current numeric safeguards: **48 GiB total host capacity, 32 GiB conservative availability before acquisition and immediately before model loading, 6 GiB continuing availability, and at least 20% system memory-free indicator**. It additionally requires a normal kernel memory-pressure level, no new swap/page-outs and valid RSS/MPS readings. The source contains **no lower threshold switch**.
+This is a separate physical read-only implementation. Task 27 replaces its copied training preload requirement with an explicitly scoped estimated budget: **at least 16 GiB conservative availability before acquisition and immediately before model loading**, increasing if the fresh process peak RSS exceeds its 1 GiB headroom allowance. It preserves **48 GiB total host capacity, 6 GiB continuing availability, and at least 20% system memory-free indicator**. It additionally requires a normal kernel memory-pressure level, no observed swap growth/new page-outs and valid, fresh RSS/MPS readings. Two observations precede checkpoint access; swap/page-out checks compare adjacent samples. The source contains **no threshold override switch**. Exact arithmetic and allowance uncertainties are documented in the [Task 27 rationale](smollm2_readonly_admission_task27.md#read-only-budget-and-uncertainty).
 
-**32 GiB is retained admission policy, not proof of SmolLM2's required memory, peak footprint or fit.** Neither estimates nor a successful admission reading calibrate a small-model threshold. This command may still fail under the Task 23 condition before downloading/loading anything; that means STOP under current policy, not proof that SmolLM2 cannot physically fit. Task 25 changes neither the Llama guard nor the Task 24 training assessor. It does not introduce an exception to bootstrap a measurement on an unadmitted host.
+The former **32 GiB** floor came from Llama SGD weights+gradients and training workspace. It was not a SmolLM2 read-only estimate. The new **16 GiB minimum is an estimated read-only admission policy**, not a measured peak or proof of fit. Failing any current check still means STOP. The original Llama guards, small-model preparation readiness, frozen training profile and Task 24 training assessor retain their thresholds. No read-only result calibrates or authorizes training.
 
 The one project-authored synthetic example is `What color is a clear daytime sky?` → `Blue.`; its text is dedicated under CC0-1.0 for this probe. It uses the frozen plain-QA encoding, answer-only labels and existing EOS, without vocabulary changes or truncation. The cached official tokenizer verified **17 total tokens / three supervised answer+EOS tokens**; a 128-token hard cap prevents accidental growth. This is a small functional measurement, not a 512-token stress allocation or a TOFU evaluation. No generation loop or KV cache is used.
 
@@ -53,7 +55,7 @@ After verified local loading on CPU, parameters are frozen with `requires_grad_(
 
 ## Measurements and their interpretation
 
-The JSON schema is `1.0`, scope `readonly_single_forward`. It records model/revision/profile digest and checked checkpoint hashes, software/OS/machine, requested/telemetry/actual model device, input digest/counts, finite loss/parity result, frozen/version checks, raw observations and peak summary. `training_authorized=false`, `backward_performed=false`, `optimizer_created=false`, `weight_updates=0` and an unset approved training threshold remain explicit.
+The JSON schema is `1.0`, scope `readonly_single_forward`. It records model/revision/profile digest and checked checkpoint hashes, software/OS/machine, requested/telemetry/actual model device, input digest/counts, finite loss/parity result, frozen/version checks, raw observations and peak summary. Task 27 adds `readonly_memory_policy` with its distinct guard ID, baseline process peak and exact estimated budget terms. `training_authorized=false`, `backward_performed=false`, `optimizer_created=false`, `weight_updates=0` and an unset approved training threshold remain explicit.
 
 | Field / stage | Method | Interpretation |
 |---|---|---|
@@ -70,7 +72,7 @@ The JSON schema is `1.0`, scope `readonly_single_forward`. It records model/revi
 
 Counter semantics were checked against the [pinned PyTorch 2.9.1 MPS implementation](https://github.com/pytorch/pytorch/blob/v2.9.1/torch/mps/__init__.py). Its [pinned allocator](https://github.com/pytorch/pytorch/blob/v2.9.1/aten/src/ATen/mps/MPSAllocator.mm) does not implement the newer generic allocator statistics either; generic accelerator peak helpers must not be treated as validated MPS peak counters for this version. Apple's [XNU pressure sysctl implementation](https://github.com/apple-oss-distributions/xnu/blob/xnu-10063.101.15/bsd/kern/kern_memorystatus_notify.c) exports mapped notification levels; [notification definitions](https://github.com/apple-oss-distributions/xnu/blob/xnu-10063.101.15/bsd/sys/event_private.h) define NORMAL=1. This pressure interface is private/OS-dependent; if absent or denied the probe stops, with no permissive fallback.
 
-Capture synchronized boundaries `before_load`, `after_cpu_load`, `after_load` (MPS), `after_inference_outputs_live` (logits/loss still resident), and `after_inference` (forward locals released, model retained). A `before_checkpoint` observation precedes acquisition/verification. A watchdog also samples during CPU loading, MPS transfer and inference, targeting a 250 ms wait between readings. Report each sample's monotonic timestamp and collection duration, maximum observed sampling gap, and sample count. The observations are **not atomic**; OS commands and MPS reads happen sequentially. The watchdog adds process overhead.
+Capture synchronized boundaries `before_load`, `after_cpu_load`, `after_load` (MPS), `after_inference_outputs_live` (logits/loss still resident), and `after_inference` (forward locals released, model retained). `baseline` and `before_checkpoint` observations, separated by a 250 ms wait, precede acquisition/verification. A watchdog also samples during CPU loading, MPS transfer and inference, targeting a 250 ms wait between readings. Report each sample's monotonic timestamp and collection duration, maximum observed sampling gap, and sample count. The observations are **not atomic**; OS commands and MPS reads happen sequentially. The watchdog adds process overhead.
 
 No measured values are produced by the default plan. Its weight-file bytes are verified metadata; its 2 GiB free-disk recommendation is an **estimate**. FP32 weight/activation/runtime estimates remain in the earlier assessment and must not be relabeled as observations. Do not add RSS and MPS allocations: their physical unified-memory views overlap. Other applications, file caching, allocator reuse and prior high-water RSS affect results.
 
@@ -90,14 +92,12 @@ Run the default offline plan safely:
 .venv-ml/bin/python -B -m src.small_model_preflight
 ```
 
-Applicable tests, with all acquisitions and physical operations mocked:
+Current applicable tests, with all acquisitions and physical operations mocked and no actual inference/backward/optimizer operations:
 
 ```sh
 PYTHONPATH=tests HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 TOKENIZERS_PARALLELISM=false \
   .venv-ml/bin/python -B -m unittest \
-  test_small_model_experiment test_small_model_memory test_small_model_preflight \
-  test_graddiff_preflight test_inspect_tofu test_evaluate_tofu_baseline \
-  test_evaluate_tofu_paired test_graddiff_experiment_plan -v
+  test_small_model_experiment test_small_model_memory test_small_model_preflight -q
 ```
 
-**78 selected tests passed**, including 13 new physical-preflight tests. Coverage includes explicit opt-ins, offline imports/defaults, local-only loading, model freeze/inference-mode enforcement, phase/output schema, pressure/reserves, invalid/absent counters, swap/page-outs, device/env/config/loading mismatch, OOM/watchdog errors, invalid/nonfinite outputs, loss parity, parameter mutations, checkpoint/license/hash checks, mocked acquisition ordering and report overwrite/symlink protections. Acquisition tests use tiny fabricated bytes and mocks; no official weights are present or downloaded. Tests do not depend on ignored metadata caches. Separately, the existing cached official config/tokenizer hashes and the actual 17-token synthetic encoding were verified without a model. Suites performing synthetic backward or optimizer steps were excluded.
+**Task 27: 48 selected offline tests passed.** Coverage includes explicit opt-ins, offline imports/defaults, local-only loading, model freeze/inference-mode enforcement, phase/output schema, pressure/reserves, invalid/absent/stale counters, swap/page-outs, device/env/config/loading mismatch, budget/headroom arithmetic, threshold boundaries, unchanged training gates, disabled updates, OOM/watchdog errors, invalid/nonfinite outputs, loss parity, parameter mutations, checkpoint/license/hash checks, mocked acquisition ordering and report overwrite/symlink protections. Acquisition tests use tiny fabricated bytes and mocks; no official weights were acquired or loaded. Tests do not depend on ignored metadata caches. Separately, the cached official config/tokenizer/card hashes were verified offline. The 17-token encoding was verified in Task 25. Suites performing actual tiny-model forward/backward or optimizer operations were excluded from Task 27.

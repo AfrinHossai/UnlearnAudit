@@ -37,6 +37,7 @@ MAX_TOKENS = 128
 SAMPLE_INTERVAL_SECONDS = 0.25
 MAX_SAMPLE_SECONDS = 2.0
 MAX_RUN_SECONDS = 180
+READONLY_GUARD_ID = "smollm2_135m_fp32_mps_single_forward_v1"
 INTEGER_FIELDS = (
     "timestamp_ns", "sample_duration_ns", "total_physical_memory_bytes",
     "available_physical_memory_lower_bound_bytes", "system_memory_free_percentage",
@@ -45,16 +46,56 @@ INTEGER_FIELDS = (
 )
 
 
+def readonly_memory_policy(profile: Mapping[str, Any], *, device: str,
+                           baseline_peak_rss_bytes: int | None = None) -> dict[str, Any]:
+    """Estimated admission budget for this frozen probe only; never training.
+
+    Existing process RSS is already excluded from available pages. Its peak is
+    used for *additional* process headroom, not added as measured model memory.
+    See docs/smollm2_readonly_admission_task27.md for every allowance.
+    """
+    select_memory_guard(profile)  # exact model/revision and frozen profile digest
+    if device != "mps":
+        raise RuntimeError("unknown/unsupported read-only device; requires mps")
+    if baseline_peak_rss_bytes is not None and (
+            type(baseline_peak_rss_bytes) is not int or baseline_peak_rss_bytes < 0):
+        raise RuntimeError("invalid baseline process memory")
+    terms = {
+        "three_fp32_weight_copies_estimate": 3 * 4 * profile["model"]["parameter_count"],
+        "source_file_residency_allowance_estimate": profile["model"]["weight_file_metadata_only"]["size_bytes"],
+        "forward_workspace_allowance_estimate": 2 * GIB,
+        "tokenizer_and_host_cache_allowance_estimate": GIB,
+        "metal_runtime_cache_allowance_estimate": GIB,
+        "additional_process_headroom_estimate": max(GIB, baseline_peak_rss_bytes or 0),
+        "uncertainty_reserve_estimate": 3 * GIB,
+    }
+    incremental = sum(terms.values())
+    reserve = 6 * GIB
+    required = reserve + ((incremental + GIB - 1) // GIB) * GIB
+    return {"guard_id": READONLY_GUARD_ID, "scope": "readonly_single_forward",
+            "model_id": MODEL_ID, "revision": REVISION, "device": device,
+            "precision": "float32", "batch_size": 1, "max_input_tokens": MAX_TOKENS,
+            "use_cache": False, "baseline_process_peak_rss_bytes": baseline_peak_rss_bytes,
+            "estimated_incremental_terms_bytes": terms,
+            "estimated_incremental_total_bytes": incremental,
+            "preload_available_required_bytes": required,
+            "continuing_available_required_bytes": reserve,
+            "minimum_total_host_bytes": 48 * GIB, "minimum_system_memory_free_percentage": 20,
+            "measured_model_requirement": False, "training_authorized": False,
+            "approved_small_model_training_threshold_bytes": None}
+
+
 def plan() -> dict[str, Any]:
     profile = json.loads(PROFILE.read_text())
-    select_memory_guard(profile)
+    policy = readonly_memory_policy(profile, device="mps")
     return {"mode": "plan_only", "model_id": MODEL_ID, "revision": REVISION,
             "license": "Apache-2.0", "weight_file_bytes": 269060552,
             "recommended_free_disk_bytes_estimate": 2 * GIB,
             "device": "mps", "precision": "float32", "max_input_tokens": MAX_TOKENS,
             "downloads_enabled": False, "model_loaded": False, "training_authorized": False,
             "approved_small_model_training_threshold_bytes": None,
-            "preload_safety_floor_bytes": 32 * GIB,
+            "preload_safety_floor_bytes": policy["preload_available_required_bytes"],
+            "readonly_memory_policy": policy,
             "safety_floor_is_not_measured_model_requirement": True}
 
 
@@ -186,25 +227,44 @@ def read_sample(torch: Any, stage: str) -> dict[str, Any]:
     return sample
 
 
-def validate_sample(sample: Mapping[str, Any], *, before_load: bool = False,
-                    baseline: Mapping[str, Any] | None = None) -> None:
+def _validate_reading(sample: Mapping[str, Any]) -> None:
+    if not isinstance(sample, Mapping):
+        raise RuntimeError("invalid memory measurement object")
     for key in INTEGER_FIELDS:
         if type(sample.get(key)) is not int or sample[key] < 0:
             raise RuntimeError(f"invalid or missing memory reading: {key}")
     if not isinstance(sample.get("stage"), str) or not sample["stage"]:
         raise RuntimeError("missing measurement stage")
     total, available = sample["total_physical_memory_bytes"], sample["available_physical_memory_lower_bound_bytes"]
-    # Preserve current policy numerically; it is not a measured SmolLM2 requirement.
-    if total < 48 * GIB or not (32 if before_load else 6) * GIB <= available <= total:
-        raise RuntimeError("memory safety floor failed (48 GiB capacity; 32 GiB preload / 6 GiB continuing)")
+    if total < 48 * GIB or not 6 * GIB <= available <= total:
+        raise RuntimeError("memory safety floor failed (48 GiB capacity / 6 GiB continuing)")
     if not 20 <= sample["system_memory_free_percentage"] <= 100 or sample["macos_pressure_level"] != 1:
         raise RuntimeError("memory pressure is not normal")
-    if (not sample["process_current_rss_bytes"] <= sample["process_peak_rss_bytes"] <= total
+    if (not 0 < sample["process_current_rss_bytes"] <= sample["process_peak_rss_bytes"] <= total
             or not sample["mps_tensor_allocated_bytes"] <= sample["mps_driver_allocated_bytes"] <= total
-            or sample["sample_duration_ns"] > MAX_SAMPLE_SECONDS * 1e9):
+            or not 0 < sample["sample_duration_ns"] <= MAX_SAMPLE_SECONDS * 1e9
+            or sample["timestamp_ns"] == 0):
         raise RuntimeError("inconsistent or stale memory telemetry")
+
+
+def validate_sample(sample: Mapping[str, Any], *, profile: Mapping[str, Any], device: str,
+                    before_load: bool = False, baseline: Mapping[str, Any] | None = None) -> None:
+    """Read-only admission; baseline is the immediately preceding observation."""
+    _validate_reading(sample)
+    policy = readonly_memory_policy(profile, device=device,
+                                    baseline_peak_rss_bytes=sample["process_peak_rss_bytes"])
+    now = time.monotonic_ns()
+    end = sample["timestamp_ns"] + sample["sample_duration_ns"]
+    if not end <= now <= sample["timestamp_ns"] + int(MAX_SAMPLE_SECONDS * 1e9):
+        raise RuntimeError("inconsistent or stale memory telemetry")
+    required = policy["preload_available_required_bytes"]
+    if before_load and sample["available_physical_memory_lower_bound_bytes"] < required:
+        raise RuntimeError(f"read-only preload memory floor failed ({required // GIB} GiB available required)")
     if baseline is not None:
-        if (total != baseline["total_physical_memory_bytes"]
+        _validate_reading(baseline)
+        if sample["timestamp_ns"] <= baseline["timestamp_ns"]:
+            raise RuntimeError("memory timestamps must increase")
+        if (sample["total_physical_memory_bytes"] != baseline["total_physical_memory_bytes"]
                 or sample["swap_used_bytes"] > baseline["swap_used_bytes"]
                 or sample["pageouts"] != baseline["pageouts"]):
             raise RuntimeError("capacity changed or swap/page-outs grew; stop measurement")
@@ -213,8 +273,10 @@ def validate_sample(sample: Mapping[str, Any], *, before_load: bool = False,
 class Monitor:
     """Bounded sampling watchdog. SIGINT requests exit at a Python safe point."""
 
-    def __init__(self, torch: Any):
+    def __init__(self, torch: Any, *, profile: Mapping[str, Any], device: str):
+        readonly_memory_policy(profile, device=device)
         self.torch = torch
+        self.profile, self.device = profile, device
         self.samples: list[dict[str, Any]] = []
         self.error: Exception | None = None
         self.stage = "before_load"
@@ -227,7 +289,8 @@ class Monitor:
             self.check()
             sample = read_sample(self.torch, stage)
             self.samples.append(sample)  # retain the failing reading for the STOP report
-            validate_sample(sample, before_load=before_load, baseline=self.samples[0])
+            validate_sample(sample, profile=self.profile, device=self.device, before_load=before_load,
+                            baseline=self.samples[-2] if len(self.samples) > 1 else None)
             return sample
 
     def check(self) -> None:
@@ -362,7 +425,7 @@ def run_preflight(*, enabled: bool, allow_download: bool, report_path: Path) -> 
         if module.__version__ != VERSIONS[name]:
             raise RuntimeError(f"requires pinned {name}=={VERSIONS[name]}")
     device = validate_environment(torch)
-    monitor = Monitor(torch)
+    monitor = Monitor(torch, profile=profile, device=device.type)
     report: dict[str, Any] = {"schema_version": "1.0", "status": "STOP", "scope": "readonly_single_forward",
                               "model_id": MODEL_ID, "revision": REVISION, "profile_sha256": digest(profile),
                               "requested_device": "mps", "telemetry_device": str(device), "actual_device": None,
@@ -379,11 +442,19 @@ def run_preflight(*, enabled: bool, allow_download: bool, report_path: Path) -> 
                                   "swap": "sysctl vm.swapusage rounded MiB converted to bytes; sub-resolution growth can be missed",
                                   "sample_atomic": False},
                               "preload_safety_floor_is_not_measured_model_requirement": True}
+    report["readonly_memory_policy"] = readonly_memory_policy(profile, device=device.type)
     try:
         torch.manual_seed(2026)
         torch.use_deterministic_algorithms(True)
         torch.mps.synchronize()
-        monitor.capture("before_checkpoint", before_load=True)
+        monitor.capture("baseline", before_load=True)
+        # Two observations are required to detect active swap/page-out growth
+        # before any checkpoint acquisition. Later readings compare adjacent
+        # samples, so a fall followed by a rise cannot hide behind the baseline.
+        time.sleep(SAMPLE_INTERVAL_SECONDS)
+        before_checkpoint = monitor.capture("before_checkpoint", before_load=True)
+        report["readonly_memory_policy"] = readonly_memory_policy(
+            profile, device=device.type, baseline_peak_rss_bytes=before_checkpoint["process_peak_rss_bytes"])
         provenance = ensure_checkpoint(profile, allow_download=allow_download)
         report["checkpoint"] = provenance
         # Deserialization and all Transformers accesses are local-only regardless
@@ -395,7 +466,9 @@ def run_preflight(*, enabled: bool, allow_download: bool, report_path: Path) -> 
         config.use_cache = False
         tokenizer = transformers.AutoTokenizer.from_pretrained(CHECKPOINT, local_files_only=True,
                                                               trust_remote_code=False, use_fast=True)
-        monitor.capture("before_load", before_load=True)
+        before_load = monitor.capture("before_load", before_load=True)
+        report["readonly_memory_policy"] = readonly_memory_policy(
+            profile, device=device.type, baseline_peak_rss_bytes=before_load["process_peak_rss_bytes"])
         monitor.stage = "loading_cpu"
         monitor.start()
         model, loading_info = transformers.AutoModelForCausalLM.from_pretrained(

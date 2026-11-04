@@ -9,6 +9,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -149,13 +150,16 @@ class SmallModelPhysicalPreflightTests(unittest.TestCase):
 
     def sample(self, stage="before_load"):
         self.counter += 1
-        return {"stage": stage, "timestamp_ns": self.counter * 1000000, "sample_duration_ns": 100000,
+        return {"stage": stage, "timestamp_ns": time.monotonic_ns() - 1000000, "sample_duration_ns": 100000,
                 "total_physical_memory_bytes": 48 * preflight.GIB,
                 "available_physical_memory_lower_bound_bytes": 36 * preflight.GIB,
                 "system_memory_free_percentage": 90, "macos_pressure_level": 1,
                 "process_current_rss_bytes": preflight.GIB, "process_peak_rss_bytes": preflight.GIB,
                 "mps_tensor_allocated_bytes": 100, "mps_driver_allocated_bytes": 200,
                 "swap_used_bytes": 0, "pageouts": 0}
+
+    def validate_sample(self, sample, **kwargs):
+        return preflight.validate_sample(sample, profile=self.profile, device="mps", **kwargs)
 
     @contextlib.contextmanager
     def runtime(self):
@@ -171,6 +175,7 @@ class SmallModelPhysicalPreflightTests(unittest.TestCase):
             stack.enter_context(mock.patch.object(preflight, "ensure_checkpoint", return_value={"license": "Apache-2.0"}))
             stack.enter_context(mock.patch.object(preflight, "read_sample", side_effect=lambda torch, stage: self.sample(stage)))
             stack.enter_context(mock.patch.object(preflight.Monitor, "start"))
+            stack.enter_context(mock.patch.object(preflight.time, "sleep"))
             stack.enter_context(mock.patch.object(graddiff, "causal_lm_nll", return_value=FakeTensor()))
             yield
 
@@ -187,9 +192,12 @@ class SmallModelPhysicalPreflightTests(unittest.TestCase):
         self.assertFalse(report["downloads_enabled"])
         self.assertFalse(report["training_authorized"])
         self.assertIsNone(report["approved_small_model_training_threshold_bytes"])
+        self.assertEqual(report["preload_safety_floor_bytes"], 16 * preflight.GIB)
+        self.assertIsNone(report["readonly_memory_policy"]["baseline_process_peak_rss_bytes"])
 
     def test_cli_requires_explicit_runtime_and_report_before_any_work(self):
-        for args in (["--allow-download"], ["--run-preflight"], ["--report-path", str(self.path)]):
+        for args in (["--allow-download"], ["--run-preflight"], ["--report-path", str(self.path)],
+                     ["--apply-updates"], ["--backward-only"]):
             with mock.patch.object(preflight, "run_preflight") as run, contextlib.redirect_stderr(io.StringIO()):
                 with self.assertRaises(SystemExit):
                     preflight.main(args)
@@ -234,24 +242,25 @@ class SmallModelPhysicalPreflightTests(unittest.TestCase):
                 sample = self.sample()
                 sample[key] = value
                 with self.subTest(key=key, value=value), self.assertRaises(RuntimeError):
-                    preflight.validate_sample(sample)
+                    self.validate_sample(sample)
         for key, value in (("macos_pressure_level", 2), ("macos_pressure_level", 4),
                            ("system_memory_free_percentage", 19), ("system_memory_free_percentage", 101),
                            ("available_physical_memory_lower_bound_bytes", 6 * preflight.GIB - 1),
                            ("total_physical_memory_bytes", 47 * preflight.GIB),
                            ("mps_tensor_allocated_bytes", 201), ("process_peak_rss_bytes", 0),
+                           ("process_current_rss_bytes", 0),
                            ("sample_duration_ns", 3000000000)):
             sample = self.sample()
             sample[key] = value
             with self.subTest(key=key), self.assertRaises(RuntimeError):
-                preflight.validate_sample(sample)
+                self.validate_sample(sample)
         sample = self.sample()
-        sample["available_physical_memory_lower_bound_bytes"] = 32 * preflight.GIB
-        preflight.validate_sample(sample, before_load=True)
+        sample["available_physical_memory_lower_bound_bytes"] = 16 * preflight.GIB
+        self.validate_sample(sample, before_load=True)
         sample["available_physical_memory_lower_bound_bytes"] -= 1
         with self.assertRaises(RuntimeError):
-            preflight.validate_sample(sample, before_load=True)
-        preflight.validate_sample(sample, before_load=False)
+            self.validate_sample(sample, before_load=True)
+        self.validate_sample(sample, before_load=False)
 
     def test_swap_growth_and_pageout_changes_stop(self):
         baseline = self.sample()
@@ -259,7 +268,122 @@ class SmallModelPhysicalPreflightTests(unittest.TestCase):
             sample = self.sample()
             sample[key] += 1
             with self.subTest(key=key), self.assertRaises(RuntimeError):
-                preflight.validate_sample(sample, baseline=baseline)
+                self.validate_sample(sample, baseline=baseline)
+
+    def test_readonly_budget_arithmetic_and_process_headroom(self):
+        policy = preflight.readonly_memory_policy(self.profile, device="mps", baseline_peak_rss_bytes=226738176)
+        terms = policy["estimated_incremental_terms_bytes"]
+        self.assertEqual(terms["three_fp32_weight_copies_estimate"], 3 * 538060032)
+        self.assertEqual(terms["source_file_residency_allowance_estimate"], 269060552)
+        self.assertEqual(sum(terms.values()), policy["estimated_incremental_total_bytes"])
+        self.assertEqual(policy["preload_available_required_bytes"], 16 * preflight.GIB)
+        self.assertFalse(policy["training_authorized"])
+        self.assertFalse(policy["measured_model_requirement"])
+        sample = self.sample()
+        sample["process_current_rss_bytes"] = sample["process_peak_rss_bytes"] = 3 * preflight.GIB
+        sample["available_physical_memory_lower_bound_bytes"] = 18 * preflight.GIB
+        self.validate_sample(sample, before_load=True)
+        sample["available_physical_memory_lower_bound_bytes"] -= 1
+        with self.assertRaisesRegex(RuntimeError, "18 GiB"):
+            self.validate_sample(sample, before_load=True)
+
+    def test_continuing_and_preload_exact_boundaries(self):
+        for before_load, floor in ((True, 16), (False, 6)):
+            sample = self.sample()
+            sample["system_memory_free_percentage"] = 20
+            sample["available_physical_memory_lower_bound_bytes"] = floor * preflight.GIB
+            self.validate_sample(sample, before_load=before_load)
+            sample["available_physical_memory_lower_bound_bytes"] -= 1
+            with self.subTest(before_load=before_load), self.assertRaises(RuntimeError):
+                self.validate_sample(sample, before_load=before_load)
+
+    def test_readonly_policy_rejects_device_profile_and_baseline_drift(self):
+        for device in (None, "", "cpu", "cuda", "unknown"):
+            with self.subTest(device=device), self.assertRaises(RuntimeError):
+                preflight.validate_sample(self.sample(), profile=self.profile, device=device, before_load=True)
+        for peak in (True, -1, float("inf"), "0"):
+            with self.subTest(peak=peak), self.assertRaises(RuntimeError):
+                preflight.readonly_memory_policy(self.profile, device="mps", baseline_peak_rss_bytes=peak)
+        for section, key, value in (("model", "repo_id", "unknown"), ("model", "revision", "main"),
+                                    ("model", "parameter_count", 1235814400),
+                                    ("training", "precision", "bfloat16")):
+            profile = copy.deepcopy(self.profile)
+            profile[section][key] = value
+            with self.subTest(key=key), self.assertRaises(ValueError):
+                preflight.validate_sample(self.sample(), profile=profile, device="mps")
+        profile = copy.deepcopy(self.profile)
+        profile["weight_updates_enabled"] = True
+        with self.assertRaises(ValueError):
+            preflight.readonly_memory_policy(profile, device="mps")
+
+    def test_stale_future_zero_and_unordered_measurements_stop(self):
+        for key, value in (("timestamp_ns", 0), ("timestamp_ns", time.monotonic_ns() + 10**10),
+                           ("timestamp_ns", time.monotonic_ns() - 3 * 10**9),
+                           ("sample_duration_ns", 0)):
+            sample = self.sample()
+            sample[key] = value
+            with self.subTest(key=key, value=value), self.assertRaises(RuntimeError):
+                self.validate_sample(sample)
+        sample = self.sample()
+        with self.assertRaisesRegex(RuntimeError, "timestamps"):
+            self.validate_sample(sample, baseline=sample)
+        for baseline in ({}, {**self.sample(), "swap_used_bytes": True}):
+            with self.assertRaises(RuntimeError):
+                self.validate_sample(self.sample(), baseline=baseline)
+
+    def test_swap_growth_before_acquisition_and_after_swap_decline_stops(self):
+        samples = [self.sample("baseline"), self.sample("before_checkpoint")]
+        samples[1]["swap_used_bytes"] = 1
+        with self.runtime(), mock.patch.object(preflight, "read_sample", side_effect=samples), \
+             mock.patch.object(preflight, "ensure_checkpoint") as acquire:
+            report = self.run_mock()
+        self.assertEqual(report["status"], "STOP")
+        self.assertIn("swap/page-outs grew", report["error"]["reason"])
+        acquire.assert_not_called()
+        self.transformers.AutoModelForCausalLM.from_pretrained.assert_not_called()
+        monitor = preflight.Monitor(self.torch, profile=self.profile, device="mps")
+        samples = [self.sample() for _ in range(3)]
+        for sample, swap in zip(samples, (100, 50, 75)):
+            sample["swap_used_bytes"] = swap
+        with mock.patch.object(preflight, "read_sample", side_effect=samples):
+            monitor.capture("baseline", before_load=True)
+            monitor.capture("before_checkpoint", before_load=True)
+            with self.assertRaisesRegex(RuntimeError, "swap/page-outs grew"):
+                monitor.capture("before_load", before_load=True)
+
+    def test_readonly_admission_below_llama_floor_remains_frozen(self):
+        original_sample = self.sample
+
+        def smaller_sample(stage):
+            sample = original_sample(stage)
+            sample["available_physical_memory_lower_bound_bytes"] = 18 * preflight.GIB
+            return sample
+
+        with self.runtime(), mock.patch.object(self, "sample", side_effect=smaller_sample):
+            report = self.run_mock()
+        self.assertEqual(report["status"], "readonly_measurement_passed_not_training_clearance")
+        self.assertEqual(report["readonly_memory_policy"]["preload_available_required_bytes"], 16 * preflight.GIB)
+        self.assertFalse(report["training_authorized"])
+        self.assertFalse(report["backward_performed"])
+        self.assertFalse(report["optimizer_created"])
+        self.assertEqual(report["weight_updates"], 0)
+        self.assertFalse(self.model.parameter.requires_grad)
+        self.assertIsNone(self.model.parameter.grad)
+        self.assertEqual(self.model.parameter._version, 0)
+
+    def test_preload_failures_prevent_checkpoint_and_weight_access(self):
+        for key, value in (("available_physical_memory_lower_bound_bytes", 16 * preflight.GIB - 1),
+                           ("macos_pressure_level", 4), ("process_current_rss_bytes", None)):
+            sample = self.sample()
+            sample[key] = value
+            with self.runtime(), mock.patch.object(preflight, "read_sample", return_value=sample), \
+                 mock.patch.object(preflight, "ensure_checkpoint") as acquire:
+                report = self.run_mock()
+            with self.subTest(key=key):
+                self.assertEqual(report["status"], "STOP")
+                acquire.assert_not_called()
+                self.transformers.AutoModelForCausalLM.from_pretrained.assert_not_called()
+            self.path.unlink()
 
     def test_device_and_allocator_environment_fail_before_loader(self):
         with self.runtime():
@@ -326,7 +450,7 @@ class SmallModelPhysicalPreflightTests(unittest.TestCase):
             self.transformers.AutoModelForCausalLM.from_pretrained.side_effect = RuntimeError("MPS OOM")
             report = self.run_mock()
         self.assertEqual(report["status"], "STOP")
-        monitor = preflight.Monitor(self.torch)
+        monitor = preflight.Monitor(self.torch, profile=self.profile, device="mps")
         with mock.patch.object(monitor.stop_event, "wait", return_value=False), \
              mock.patch.object(monitor, "capture", side_effect=RuntimeError("pressure")), \
              mock.patch.object(preflight._thread, "interrupt_main") as interrupt:
@@ -408,7 +532,7 @@ class SmallModelPhysicalPreflightTests(unittest.TestCase):
         self.assertEqual(sample["process_current_rss_bytes"], 1024**2)
         self.assertEqual(sample["process_peak_rss_bytes"], 2 * 1024**2)
         self.assertEqual(sample["pageouts"], 4)
-        preflight.validate_sample(sample, before_load=True)
+        self.validate_sample(sample, before_load=True)
         with mock.patch.object(preflight, "_command", return_value="bad telemetry"):
             with self.assertRaises(RuntimeError):
                 preflight.read_sample(self.torch, "before_load")

@@ -2,7 +2,9 @@
 
 **Decision: the 32 GiB check is inherited from Llama; actual SmolLM2 fit remains unresolved. Real training remains NO-GO.** No guard is lowered, bypassed or automatically calibrated. No model weights were downloaded or loaded, no full model was instantiated, and no backward pass, optimizer update or paid resource was used in this task.
 
-**Task 25 follow-through:** the [separate physical read-only preflight](smollm2_readonly_preflight.md) now prepares an owner-run pinned-checkpoint load/forward measurement. Its implementation retains current admission numbers and produces a distinct read-only report; it neither changes this assessment policy nor supplies the missing training-memory evidence. It was not physically executed during preparation.
+**Task 27 update:** the [read-only admission audit](smollm2_readonly_admission_task27.md) traces Task 26's pre-checkpoint STOP and introduces a separately justified **16 GiB minimum read-only preload** budget, increasing with measured baseline process memory. It changes only the bounded frozen forward probe. This Task 24 training assessment, evidence contract, inherited readiness gate and deny-by-default update controls remain unchanged. Historical statements below about blocked calibration and unchanged 32 GiB admission continue to apply to the training assessment; they do not describe the revised read-only probe.
+
+**Task 25 follow-through (historical):** the [separate physical read-only preflight](smollm2_readonly_preflight.md) prepared an owner-run pinned-checkpoint load/forward measurement. Its original implementation retained the admission numbers and produced a distinct read-only report; it neither changed this assessment policy nor supplied the missing training-memory evidence. It was not physically executed during preparation.
 
 ## Failure provenance and limits of the available evidence
 
