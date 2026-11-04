@@ -3,7 +3,7 @@
   "experiment_id": "tofu_forget01_retain99_llama32_1b_graddiff_mps_prototype",
   "status": "synthetic_prototype_implemented; model_training_not_run",
   "primary_profile": "experiments/graddiff_tofu_forget01_retain99.json",
-  "purpose": "Document the Apple Silicon adaptation and its offline synthetic validation. This profile is not the recommended scientific run; no real model or TOFU data has been loaded.",
+  "purpose": "Document the Apple Silicon adaptation and its offline synthetic validation. This profile is not the recommended scientific run; no full model weights have been loaded by the GradDiff integration smoke and no TOFU training has occurred.",
   "device": {
     "backend": "mps",
     "host": "Apple M4 Pro, 48 GB marketed unified-memory capacity; macOS reports 51,539,607,552 bytes (48 GiB)",
@@ -49,6 +49,10 @@
     "loss_module": "src/graddiff.py",
     "synthetic_trainer_and_cli": "src/graddiff_train.py",
     "automated_tests": "tests/test_graddiff.py",
+    "read_only_integration_helpers": "src/graddiff_integration.py",
+    "read_only_smoke_command": "python -m src.graddiff_model_smoke --device mps",
+    "read_only_full_model_smoke_implemented": true,
+    "read_only_full_model_smoke_executed": false,
     "validated_against_upstream_commit": "a456aa277be14b836248e42b13b3befe47bb03f4",
     "dry_run_command": "python -m src.graddiff_train --dry-run --device auto --steps 3",
     "loss_normalization": "Shift logits and labels by one token; mean cross entropy over non-ignored next-token labels separately for forget and retain batches; combine the two means with -gamma and +alpha.",
@@ -104,7 +108,7 @@
       "optimizer_parameter_rtol": 0.0001
     },
     "acceptance_rule": "All fixed-batch loss, gradient, and update comparisons must pass before considering a full-model MPS pilot. Passing small-model tests establishes objective/update agreement only; it does not establish full-model fit, runtime, deterministic kernels, or benchmark equivalence.",
-    "execution_status": "The full repository test suite passed all 39 tests with no skips outside the restricted sandbox; CPU and MPS synthetic CLI dry runs, CPU-versus-MPS tiny-fixture loss/gradient/Torch AdamW update comparisons, and pinned-source equation-transcription checks passed. The actual OpenUnlearning class was not executed; no real model, TOFU training data, official evaluation, or cloud resource was used."
+    "execution_status": "Task 13: the full repository test suite passed all 39 tests with no skips outside the restricted sandbox; CPU and MPS synthetic CLI dry runs, CPU-versus-MPS tiny-fixture loss/gradient/Torch AdamW update comparisons, and pinned-source equation-transcription checks passed. Task 14: fixture tests and actual cached tokenizer plus checksum-pinned data preparation passed, but full model weights and model forwards were not run. The actual OpenUnlearning class was not executed; no TOFU training, official evaluation, or cloud resource was used."
   },
   "resource_and_claim_limits": {
     "full_model_peak_memory": "unknown; no full-model MPS training measurement exists",

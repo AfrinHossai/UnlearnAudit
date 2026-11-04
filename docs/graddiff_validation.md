@@ -1,6 +1,6 @@
 # GradDiff implementation validation and training feasibility
 
-**Decision:** No-go for real-model optimizer steps with the current prototype. The local scalar GradDiff objective and gradients match a deterministic transcription of the pinned OpenUnlearning handler on synthetic tensors. The repository still has no real-model training path, and the actual pinned Trainer, tokenizer/collator, accumulation schedule, and optimizer have not been executed or compared end to end.
+**Decision:** No-go for real-model optimizer steps. The local scalar GradDiff objective and gradients match deterministic transcriptions of the pinned OpenUnlearning handler and Transformers loss on synthetic tensors. Task 14 adds a separate read-only real-model integration command, but it has not loaded the checkpoint weights or been run end to end; the repository still has no real-model training path.
 
 ## Scope and pinned references
 
@@ -61,7 +61,7 @@ The host reports 51,539,607,552 bytes of total physical memory (48 GiB). Subtrac
 
 **Technical assessment:** a single-device MPS run looks plausible on paper at microbatch 1, sequence length at most 512, FP32, gradient checkpointing enabled, and SDPA. Under the explicitly stated 8–12 GiB planning reserve, the current arithmetic envelope is about 27.1–31.1 GiB, leaving 16.9–20.9 GiB of the host's 48 GiB total capacity for uncounted activations and transients on paper. The reserve itself is unvalidated and actual peaks may exceed it. This does not prove the full model fits: MPS allocator behavior, the actual checkpoint load path, macOS pressure, and peak backward memory have not been measured. The prototype has only been exercised on the tiny synthetic model using the installed PyTorch 2.9.1, not the pinned upstream PyTorch 2.4.1.
 
-For a future local feasibility pilot, first add a model wrapper that passes the official `input_ids`, `attention_mask`, and `labels`, and implements the planned accumulation boundary. Then run a memory-only load and a bounded forward/backward smoke with no optimizer step, at microbatch 1, length 512, FP32, gradient checkpointing, SDPA, and one process. Only after that passes should a disposable-copy optimizer-step pilot be considered. Keep the source checkpoint immutable and write any output to a new path. The current synthetic-only CLI cannot perform these steps, so this is not an approval to train.
+Task 14 now provides a separate local-cache-only forward/loss smoke at batch size one with no backward pass, optimizer, or output write. See [the integration smoke instructions](graddiff_model_integration_smoke.md). This is a read-only inference-style check, not a training-feasibility measurement. The command still must be run outside the restricted sandbox on the physical Mac to measure model loading and forward memory. It does not authorize a weight update.
 
 For an OpenUnlearning-faithful primary experiment, use the pinned Linux CUDA path with two 48 GB L40S GPUs, Accelerate, and DeepSpeed ZeRO-3 as described in its reproduction notes. A paid cloud GPU is not mathematically required for GradDiff, but is the practical alternative if matching that CUDA/distributed setup and no equivalent hardware is available. No cloud resource has been used or charged in this validation.
 
@@ -75,4 +75,4 @@ For an OpenUnlearning-faithful primary experiment, use the pinned Linux CUDA pat
 - Exercise the model loader and collect peak MPS memory, full-model throughput, and numerical stability at length 512.
 - Validate checkpoints, rollback, and the official evaluator before any actual TOFU run.
 
-**Conditional feasibility:** a later memory-only or non-updating forward/backward smoke on MPS is reasonable after adding the real-model wrapper and confirming the pinned source-level checks. The current prototype is not yet ready to conduct even that smoke through its CLI. No real model was loaded, no TOFU data was used for training, no unlearning occurred, and no historical result was changed.
+**Conditional feasibility:** the read-only one-forget/one-retain model smoke is implemented and ready for a physical-device run using the existing cache. It has not yet validated full-model loss parity or peak memory. The training prototype remains synthetic-only. No checkpoint weights were loaded in Task 14, no TOFU data was used for training, no unlearning occurred, and no historical result was changed.
