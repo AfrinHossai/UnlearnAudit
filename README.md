@@ -1,9 +1,9 @@
 # UnlearnGuard: Privacy Leakage After Machine Unlearning
 
 **Project:** `UnlearnGuard-Privacy-Leakage-Research`  
-**Status:** The five-question baseline and paired 40-forget/40-retain pre-unlearning diagnostic are saved and audited. The synthetic GradDiff objective has passed equation-level validation against a pinned OpenUnlearning source transcription; real-model training and official TOFU evaluation remain pending.
+**Status:** The five-question baseline and paired 40-forget/40-retain pre-unlearning diagnostic are saved and audited. The synthetic GradDiff objective has passed equation-level validation against a pinned OpenUnlearning source transcription. A guarded local real-model runner is implemented; no real-model optimizer step or official TOFU evaluation has been run.
 
-> **Research status:** No TOFU checkpoint has been fine-tuned or unlearned in this repository. The released TOFU-finetuned checkpoint has local five-question and paired 40/40 pre-unlearning diagnostics. Their JSON outputs remain ignored by Git; the paired artifact's audit metadata is recorded in the GradDiff plan. These are lightweight lexical diagnostics, not official TOFU Forget Quality or Model Utility evaluations. A tiny randomly initialized model is used only by the local environment smoke diagnostic.
+> **Research status:** No TOFU checkpoint has been fine-tuned or unlearned in this repository. The released TOFU-finetuned checkpoint has local five-question and paired 40/40 pre-unlearning diagnostics. Their JSON outputs remain ignored by Git; the paired artifact's audit metadata is recorded in the GradDiff plan. These are lightweight lexical diagnostics, not official TOFU Forget Quality or Model Utility evaluations. The new real-model runner has not loaded the Llama weights or performed an optimizer update.
 
 ## Motivation
 
@@ -70,7 +70,34 @@ Run the synthetic dry run with PyTorch installed:
 python -m src.graddiff_train --dry-run --device auto --steps 3
 ```
 
-The 56-test suite passes outside the restricted sandbox so the synthetic MPS check can run. Tests cover loss normalization, gradient signs, error handling, and fixture-based model integration. A deterministic transcription of the pinned Transformers causal-LM loss and OpenUnlearning GradDiff objective matches the local scalar loss and input-logit gradients. The cached tokenizer and pinned forget/retain examples have been checked without loading model weights. A separate [real-model read-only smoke](docs/graddiff_model_integration_smoke.md) is prepared for a normal Mac Terminal; it has not been run. The implementation is **not ready for a real-model optimizer step**: full-model loss and memory, gradient accumulation, and optimizer parity remain unverified. No TOFU GradDiff update or real unlearning has been performed.
+The repository tests cover loss normalization, gradient signs, error handling, and fixture-based model integration. A deterministic transcription of the pinned Transformers causal-LM loss and OpenUnlearning GradDiff objective matches the local scalar loss and input-logit gradients. The cached tokenizer and pinned forget/retain examples have been checked without loading model weights. The new [guarded real-model runner](src/graddiff_real_train.py) defaults to local validation with no model-weight loading; an update requires `--apply-updates`, an explicit device, and confirmation of the immutable model revision. Its one-step Apple Silicon profile uses FP32, SDPA, Torch AdamW, batch size one, gradient checkpointing, finite-loss/gradient checks, and clipping. This is a local port, not a faithful OpenUnlearning reproduction. The separate [real-model read-only smoke](docs/graddiff_model_integration_smoke.md) has not been run. The runner is **not yet cleared for a real-model optimizer step** because full-model loss parity and peak memory on MPS remain unmeasured. No TOFU GradDiff update or real unlearning has been performed.
+
+### Safe validation and future one-step command
+
+Use the existing project-local environment. The default validation reads only the pinned local config, tokenizer, and checksum-verified dataset files; it does not deserialize model weights, create an optimizer, or update parameters:
+
+```sh
+env -u CONDA_PREFIX -u CONDA_DEFAULT_ENV -u PYTHONHOME -u PYTHONPATH \
+  HF_HUB_OFFLINE=1 \
+  ./.venv-ml/bin/python -m src.graddiff_real_train --dry-run
+```
+
+After the read-only full-model smoke and live memory check pass, the exact command for one explicitly enabled MPS update is:
+
+```sh
+env -u CONDA_PREFIX -u CONDA_DEFAULT_ENV -u PYTHONHOME -u PYTHONPATH \
+  HF_HUB_OFFLINE=1 \
+  ./.venv-ml/bin/python -m src.graddiff_real_train \
+  --apply-updates --device mps \
+  --confirm-model-revision 88e31200b97e4c0c04ae0d2f0b591f427046d192 \
+  --max-steps 1 --seed 2026 --learning-rate 1e-5 \
+  --gamma 1.0 --alpha 1.0 --max-grad-norm 1.0 \
+  --max-sequence-length 512 \
+  --report-path outputs/graddiff-step1-mps-2026-11-03.json \
+  --save-checkpoint outputs/graddiff-step1-mps-2026-11-03
+```
+
+The runner is local-only and fails if pinned files are missing; it does not download data or model weights. CPU use must be selected by changing `--device mps` to `--device cpu`; there is no automatic device fallback. Model outputs and checkpoints can be written only under the Git-ignored `outputs/` directory, and existing paths or the original TOFU checkpoint are rejected. Reports store dataset checksums, split row indices, loss components, hyperparameters, memory snapshots, and the actual device, but no question/answer text, environment secrets, or model weights. The FP32 AdamW state floor is estimated at 18.42 GiB, with a 27.1–31.1 GiB planning envelope; neither figure is a measured training peak. The local runner omits upstream distributed sampling, gradient accumulation, scheduler, paged AdamW, BF16, and FlashAttention, so its output must not be reported as an official benchmark reproduction. See [docs/graddiff_experiment_plan.md](docs/graddiff_experiment_plan.md) for readiness limits and deviations.
 
 ## Local ML Environment Smoke Test
 
@@ -99,8 +126,8 @@ An interactive application is planned after the experiment pipeline is implement
 ├── docs/         # Dataset provenance, compute assessment, and baseline instructions
 ├── experiments/  # Frozen TOFU manifest and GradDiff experiment profiles
 ├── results/      # Tracked, metadata-only TOFU inspection summary
-├── src/          # Dataset inspection, baseline evaluation, and synthetic GradDiff prototype
-└── tests/        # Offline tests for data validation, baseline logic, and synthetic GradDiff
+├── src/          # Data inspection, baseline evaluation, and guarded GradDiff runners
+└── tests/        # Offline data, objective, integration, and runner-safety tests
 ```
 
 ## References
