@@ -1,0 +1,68 @@
+{
+  "schema_version": "1.0",
+  "source": "project_authored_generic_language_and_elementary_facts_v1",
+  "license": "CC0-1.0",
+  "scope": "12 deliberately small drift diagnostics, not an official utility benchmark; never train on these",
+  "cases": [
+    {
+      "id": "utility:00",
+      "question": "How many days are in a week?",
+      "answer": "There are seven days in a week."
+    },
+    {
+      "id": "utility:01",
+      "question": "What is two plus three?",
+      "answer": "Two plus three is five."
+    },
+    {
+      "id": "utility:02",
+      "question": "What do plants need from the sun?",
+      "answer": "Plants need light from the sun."
+    },
+    {
+      "id": "utility:03",
+      "question": "What is the opposite of hot?",
+      "answer": "The opposite of hot is cold."
+    },
+    {
+      "id": "utility:04",
+      "question": "Complete the sequence: one, two, three,",
+      "answer": "four."
+    },
+    {
+      "id": "utility:05",
+      "question": "What do people usually use to write on paper?",
+      "answer": "People usually use a pen or pencil to write on paper."
+    },
+    {
+      "id": "utility:06",
+      "question": "What is the plural of cat?",
+      "answer": "The plural of cat is cats."
+    },
+    {
+      "id": "utility:07",
+      "question": "What color is a clear daytime sky usually?",
+      "answer": "A clear daytime sky is usually blue."
+    },
+    {
+      "id": "utility:08",
+      "question": "What is frozen water called?",
+      "answer": "Frozen water is called ice."
+    },
+    {
+      "id": "utility:09",
+      "question": "Which is larger, ten or two?",
+      "answer": "Ten is larger than two."
+    },
+    {
+      "id": "utility:10",
+      "question": "Complete this common sentence: The sun rises in the",
+      "answer": "east."
+    },
+    {
+      "id": "utility:11",
+      "question": "What punctuation usually ends a question?",
+      "answer": "A question mark usually ends a question."
+    }
+  ]
+}

@@ -1,0 +1,247 @@
+{
+  "schema_version": "1.0",
+  "experiment_id": "smollm2_135m_tofu_controlled_v1",
+  "status": "preparation_only_not_executable",
+  "weight_updates_enabled": false,
+  "model": {
+    "repo_id": "HuggingFaceTB/SmolLM2-135M",
+    "revision": "93efa2f097d58c2a74874c7e644dbc9b0cee75a2",
+    "license": "Apache-2.0",
+    "architecture": "LlamaForCausalLM",
+    "model_type": "llama",
+    "parameter_count": 134515008,
+    "vocab_size": 49152,
+    "hidden_size": 576,
+    "intermediate_size": 1536,
+    "num_hidden_layers": 30,
+    "num_attention_heads": 9,
+    "num_key_value_heads": 3,
+    "tie_word_embeddings": true,
+    "max_position_embeddings": 8192,
+    "eos_token_id": 0,
+    "trust_remote_code": false,
+    "tokenizer_class": "GPT2TokenizerFast",
+    "tokenizer_revision": "93efa2f097d58c2a74874c7e644dbc9b0cee75a2",
+    "metadata_sha256": {
+      "config.json": "1d556eab73b69c7f11f64c557a2f9c6f440bd4c6b89bb2584a6b498c92603843",
+      "tokenizer_config.json": "4bb9af56a342753d39374f4016a16574cab299fe088e896f425ce3c433f61424",
+      "special_tokens_map.json": "e786b595b9a23148bf1630df78d9037a048ea671e48bfd3549a1e3c233742bb3",
+      "tokenizer.json": "9ca9acddb6525a194ec8ac7a87f24fbba7232a9a15ffa1af0c1224fcd888e47c",
+      "README.md": "d1ba68cae64a89b6b434b11526e6e2271ee5ffd2c914ec35ed515f9d84c6085c"
+    },
+    "weight_file_metadata_only": {
+      "filename": "model.safetensors",
+      "size_bytes": 269060552,
+      "hub_lfs_sha256": "80521b40281d6ce74e35c9282c22539e75aa0ac8578892b2a59955ef78d55da1",
+      "downloaded": false
+    }
+  },
+  "dataset": {
+    "repo_id": "locuslab/TOFU",
+    "revision": "324592d84ae4f482ac7249b9285c2ecdb53e3a68",
+    "license": "MIT",
+    "files": {
+      "forget01": {
+        "filename": "forget01.json",
+        "sha256": "d0047332bd27a489c552659831f4ffff080e2b9b6e063c7c951ac4de9d494a63",
+        "record_count": 40
+      },
+      "retain99": {
+        "filename": "retain99.json",
+        "sha256": "e699ae5fe685996cd7d0a60cbcbeae717e989a2fd0caf00b4d545ba39ccefc61",
+        "record_count": 3960
+      },
+      "forget01_perturbed": {
+        "filename": "forget01_perturbed.json",
+        "sha256": "d8d8a80bd25e853b52fad0e3301d86fa4db6bc2b665cd79ea937346186a0944a",
+        "record_count": 40
+      },
+      "holdout01": {
+        "filename": "holdout01.json",
+        "sha256": "4de5388d2e5927eab81f3d9fb491439b7c63359002452cfd3177a6c0977c08b5",
+        "record_count": 40
+      },
+      "retain_perturbed": {
+        "filename": "retain_perturbed.json",
+        "sha256": "fc69f33bad70d3dca65920bdb54380039e3e8872dd16bbae20c1a839b99533fb",
+        "record_count": 400,
+        "upstream_git_blob_sha1": "d3c80f2f7d85cbec3a6b341d175af08ede545904"
+      }
+    },
+    "forget_count": 40,
+    "retain_count": 120,
+    "retain_unseen_count": 40,
+    "selection": "sorted lowest SHA256(seed:index) ranks; reject duplicates in selected sets",
+    "forget_paraphrase_source": "forget01_perturbed",
+    "retain_paraphrase_source": "retain_perturbed",
+    "holdout_policy": "sealed_until_final_checkpoint_fixed_no_tuning"
+  },
+  "seed": 2026,
+  "manifest": "experiments/smollm2_135m_tofu_manifest.json",
+  "encoding": {
+    "format": "Question: {question}\nAnswer:\n{answer}",
+    "add_special_tokens": false,
+    "append_eos": true,
+    "mask_prompt_and_padding": true,
+    "ignore_index": -100,
+    "padding_side": "right",
+    "pad_token_id": 0,
+    "pad_policy": "explicit_existing_eos_no_embedding_resize",
+    "boundary_policy": "exact_prompt_token_prefix_or_reject",
+    "truncation": false
+  },
+  "training": {
+    "device": "mps",
+    "cpu_option": "separate_explicit_profile_required",
+    "optimizer": "torch.optim.SGD",
+    "momentum": 0.0,
+    "weight_decay": 0.0,
+    "foreach": false,
+    "fused": false,
+    "precision": "float32",
+    "autocast": false,
+    "attention_implementation": "sdpa",
+    "gradient_checkpointing": true,
+    "checkpoint_use_reentrant": false,
+    "checkpoint_preserve_rng_state": true,
+    "use_cache": false,
+    "batch_size": 1,
+    "gradient_accumulation_steps": 1,
+    "max_sequence_length": 512,
+    "max_grad_norm": 1.0,
+    "scheduler": "none",
+    "finite_loss_and_gradients_required": true
+  },
+  "acquisition": {
+    "epochs": 20,
+    "max_optimizer_steps": 3200,
+    "retain_reference_max_optimizer_steps": 2400,
+    "learning_rate": null,
+    "candidate_learning_rates": [
+      0.0001,
+      0.0003,
+      0.001
+    ],
+    "calibration_status": "blocked_pending_authorized_development_calibration_and_evaluator",
+    "epoch_order": "SHA256(seed:epoch:case_id) ascending",
+    "checkpoint_selection": "fixed_final_budget_not_selected_on_forget_evaluation"
+  },
+  "unlearning": {
+    "gamma": 1.0,
+    "alpha": 1.0,
+    "retain_loss_type": "NLL",
+    "epochs": 1,
+    "max_optimizer_steps": 40,
+    "learning_rate": null,
+    "candidate_learning_rates": [
+      1e-05,
+      3e-05,
+      0.0001
+    ],
+    "calibration_status": "blocked_pending_authorized_development_calibration_and_evaluator",
+    "forget_order": "pinned_split_order",
+    "retain_draws": "random.Random(2026).randrange(120), replacement, pinned Python 3.11",
+    "controls": [
+      "M0",
+      "M_all",
+      "M_R",
+      "M_all_noop",
+      "M_all_retain_only_40_steps",
+      "M_all_graddiff_40_steps"
+    ]
+  },
+  "evaluation": {
+    "generation": {
+      "do_sample": false,
+      "num_beams": 1,
+      "max_new_tokens": 128,
+      "use_cache": false,
+      "context": "question_only_no_target_facts"
+    },
+    "metrics": [
+      "answer_NLL_per_supervised_token",
+      "normalized_exact_match",
+      "normalized_token_overlap_f1",
+      "frozen_key_fact_recovery",
+      "empty_output_rate",
+      "refusal_rate",
+      "repetition_rate"
+    ],
+    "key_fact_aliases_status": "not_prepared_blocks_updates",
+    "utility_probes": "experiments/smollm2_135m_utility_probes.json",
+    "acquisition_gates": {
+      "minimum_direct_forget_recovery": 0.8,
+      "minimum_direct_retain_recovery": 0.8,
+      "minimum_forget_gain_over_M0": 0.5,
+      "minimum_forget_paraphrase_recovery": 0.5,
+      "require_NLL_decrease_forget_and_retain": true
+    },
+    "unlearning_gates": {
+      "minimum_forget_direct_and_paraphrase_recovery_drop": 0.25,
+      "maximum_retain_recovery_drop": 0.05,
+      "maximum_retain_F1_drop": 0.05,
+      "maximum_retain_NLL_increase": 0.1,
+      "require_forget_NLL_increase": true,
+      "require_drop_exceeds_retain_only_control": true,
+      "maximum_utility_probe_NLL_increase": 0.1,
+      "maximum_empty_refusal_repetition_rate_increase": 0.05
+    },
+    "thresholds_are_proposals_not_official_TOFU_standards": true,
+    "official_TOFU_scores": false,
+    "forget_reduction_explained_only_by_refusal_or_degeneration_is_failure": true
+  },
+  "safety": {
+    "before_load_available_lower_bound_gib": 32,
+    "adamw_alternative_threshold_gib": 42,
+    "continuing_available_lower_bound_gib": 6,
+    "minimum_system_memory_free_percentage": 20,
+    "minimum_total_host_gib": 48,
+    "device_fallback": false,
+    "outputs_root": "outputs/smollm2_135m_tofu",
+    "require_new_git_ignored_output_paths": true,
+    "no_original_checkpoint_overwrite": true,
+    "explicit_update_authorization_required": true,
+    "training_entrypoint": null
+  },
+  "memory_estimates": {
+    "measured": false,
+    "fp32_weight_bytes": 538060032,
+    "fp32_gradient_bytes": 538060032,
+    "optimizer_state_bytes": 0,
+    "activation_workspace_allowance_gib": [
+      2,
+      4
+    ],
+    "working_peak_gib_rounded": [
+      3,
+      5
+    ],
+    "host_envelope_gib_rounded": [
+      19,
+      21
+    ],
+    "not_a_guard_override": true
+  },
+  "upstream_deviations": [
+    "new base model and controlled acquisition; no released TOFU memorization anchor",
+    "40 forget + 120 retain subset; custom plain QA format",
+    "FP32 SGD without momentum, no scheduler, checkpointing, local single MPS device",
+    "project descriptive diagnostics and self-trained retain reference; not official TOFU reproduction"
+  ],
+  "development": {
+    "path": "experiments/smollm2_135m_development_facts.json",
+    "seed": 2026,
+    "forget_records": 8,
+    "retain_records": 24,
+    "acquisition_epochs": 20,
+    "acquisition_max_optimizer_steps": 640,
+    "retain_reference_max_optimizer_steps": 480,
+    "unlearning_max_optimizer_steps": 8,
+    "acquisition_selection_rule": "lowest candidate learning rate meeting the same acquisition gates at fixed final development budget; otherwise STOP",
+    "unlearning_selection_rule": "lowest candidate learning rate meeting the same forgetting/utility gates and exceeding matched retain-only control on development; otherwise STOP",
+    "selection_ties": "lower numeric learning rate",
+    "every_candidate_starts_from_same_base": true,
+    "target_TOFU_scores_used_for_rate_selection": false,
+    "limitations": "Short artificial object attributes may not transfer learning rates to long TOFU author answers; no success assumed."
+  }
+}

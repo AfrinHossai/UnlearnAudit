@@ -2,6 +2,8 @@
 
 **Task 21 assessment, 2026-11-03. Research and documentation only. No model weights downloaded, instantiated, trained or modified. No cloud resources used.**
 
+**Task 22 follow-through:** the [controlled preparation protocol](smollm2_tofu_experiment.md) now provides a separate pinned profile, hash-only manifest and offline validator. Official tokenizer/config assets were verified and all diagnostic token boundaries passed; no weights were downloaded or instantiated. There are 12 official retain paraphrases aligned to the frozen 120-row sample, replacing the proposed but unauthored 40-case wording diagnostic for this preparation. Current memory guards remain binding; no small-model trainer or lower threshold is enabled. The dated assessment below remains the decision rationale, with current observations and blockers in the preparation protocol.
+
 ## Recommendation and execution status
 
 Prepare a **separate SmolLM2-135M controlled fact-acquisition → full-parameter GradDiff experiment**, using 40 pinned TOFU forget records and a deterministic 120-record retain subset. First establish that the model learned the target facts; only then attempt forgetting with retained-utility controls. This is a TOFU-subset experiment, not an official TOFU reproduction. It offers the smallest verified candidate here, a standard Llama-class implementation already familiar to our fixtures, and enough room to keep FP32 and full-parameter updates rather than introducing quantization or adapters.

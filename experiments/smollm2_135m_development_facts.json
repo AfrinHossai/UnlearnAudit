@@ -1,0 +1,363 @@
+{
+  "schema_version": "1.0",
+  "source": "project_authored_synthetic_objects_v1",
+  "license": "CC0-1.0",
+  "seed": 2026,
+  "not_TOFU": true,
+  "purpose": "Disjoint development facts only; no target-rate tuning on TOFU; random strings are public fictional attributes, not secrets.",
+  "generator": "random.Random(2026); 16 objects x 2 attributes; 12 lowercase letters via choice in stable object/attribute order",
+  "facts": [
+    {
+      "id": "dev:00:0",
+      "entity": "UGDEV2026-Object-00",
+      "role": "forget",
+      "question": "What is the archive code of UGDEV2026-Object-00?",
+      "answer": "The archive code of UGDEV2026-Object-00 is dkqqudhttrnz.",
+      "paraphrased_question": "For UGDEV2026-Object-00, which code in the archive was assigned?",
+      "target_aliases": [
+        "dkqqudhttrnz"
+      ]
+    },
+    {
+      "id": "dev:00:1",
+      "entity": "UGDEV2026-Object-00",
+      "role": "forget",
+      "question": "What is the emblem word of UGDEV2026-Object-00?",
+      "answer": "The emblem word of UGDEV2026-Object-00 is srxyypyysoha.",
+      "paraphrased_question": "For UGDEV2026-Object-00, which word used as its emblem was assigned?",
+      "target_aliases": [
+        "srxyypyysoha"
+      ]
+    },
+    {
+      "id": "dev:01:0",
+      "entity": "UGDEV2026-Object-01",
+      "role": "forget",
+      "question": "What is the archive code of UGDEV2026-Object-01?",
+      "answer": "The archive code of UGDEV2026-Object-01 is tcdjdoavpvkg.",
+      "paraphrased_question": "For UGDEV2026-Object-01, which code in the archive was assigned?",
+      "target_aliases": [
+        "tcdjdoavpvkg"
+      ]
+    },
+    {
+      "id": "dev:01:1",
+      "entity": "UGDEV2026-Object-01",
+      "role": "forget",
+      "question": "What is the emblem word of UGDEV2026-Object-01?",
+      "answer": "The emblem word of UGDEV2026-Object-01 is millzmxqucxk.",
+      "paraphrased_question": "For UGDEV2026-Object-01, which word used as its emblem was assigned?",
+      "target_aliases": [
+        "millzmxqucxk"
+      ]
+    },
+    {
+      "id": "dev:02:0",
+      "entity": "UGDEV2026-Object-02",
+      "role": "forget",
+      "question": "What is the archive code of UGDEV2026-Object-02?",
+      "answer": "The archive code of UGDEV2026-Object-02 is crrjjoeuwwsj.",
+      "paraphrased_question": "For UGDEV2026-Object-02, which code in the archive was assigned?",
+      "target_aliases": [
+        "crrjjoeuwwsj"
+      ]
+    },
+    {
+      "id": "dev:02:1",
+      "entity": "UGDEV2026-Object-02",
+      "role": "forget",
+      "question": "What is the emblem word of UGDEV2026-Object-02?",
+      "answer": "The emblem word of UGDEV2026-Object-02 is awlloncmsrpd.",
+      "paraphrased_question": "For UGDEV2026-Object-02, which word used as its emblem was assigned?",
+      "target_aliases": [
+        "awlloncmsrpd"
+      ]
+    },
+    {
+      "id": "dev:03:0",
+      "entity": "UGDEV2026-Object-03",
+      "role": "forget",
+      "question": "What is the archive code of UGDEV2026-Object-03?",
+      "answer": "The archive code of UGDEV2026-Object-03 is nqzytpmqinsp.",
+      "paraphrased_question": "For UGDEV2026-Object-03, which code in the archive was assigned?",
+      "target_aliases": [
+        "nqzytpmqinsp"
+      ]
+    },
+    {
+      "id": "dev:03:1",
+      "entity": "UGDEV2026-Object-03",
+      "role": "forget",
+      "question": "What is the emblem word of UGDEV2026-Object-03?",
+      "answer": "The emblem word of UGDEV2026-Object-03 is qqzashyebwqv.",
+      "paraphrased_question": "For UGDEV2026-Object-03, which word used as its emblem was assigned?",
+      "target_aliases": [
+        "qqzashyebwqv"
+      ]
+    },
+    {
+      "id": "dev:04:0",
+      "entity": "UGDEV2026-Object-04",
+      "role": "retain",
+      "question": "What is the archive code of UGDEV2026-Object-04?",
+      "answer": "The archive code of UGDEV2026-Object-04 is dwtnpephduwo.",
+      "paraphrased_question": "For UGDEV2026-Object-04, which code in the archive was assigned?",
+      "target_aliases": [
+        "dwtnpephduwo"
+      ]
+    },
+    {
+      "id": "dev:04:1",
+      "entity": "UGDEV2026-Object-04",
+      "role": "retain",
+      "question": "What is the emblem word of UGDEV2026-Object-04?",
+      "answer": "The emblem word of UGDEV2026-Object-04 is vpwrirmvjrzu.",
+      "paraphrased_question": "For UGDEV2026-Object-04, which word used as its emblem was assigned?",
+      "target_aliases": [
+        "vpwrirmvjrzu"
+      ]
+    },
+    {
+      "id": "dev:05:0",
+      "entity": "UGDEV2026-Object-05",
+      "role": "retain",
+      "question": "What is the archive code of UGDEV2026-Object-05?",
+      "answer": "The archive code of UGDEV2026-Object-05 is qwpzmngjiabe.",
+      "paraphrased_question": "For UGDEV2026-Object-05, which code in the archive was assigned?",
+      "target_aliases": [
+        "qwpzmngjiabe"
+      ]
+    },
+    {
+      "id": "dev:05:1",
+      "entity": "UGDEV2026-Object-05",
+      "role": "retain",
+      "question": "What is the emblem word of UGDEV2026-Object-05?",
+      "answer": "The emblem word of UGDEV2026-Object-05 is utozqplgiwpo.",
+      "paraphrased_question": "For UGDEV2026-Object-05, which word used as its emblem was assigned?",
+      "target_aliases": [
+        "utozqplgiwpo"
+      ]
+    },
+    {
+      "id": "dev:06:0",
+      "entity": "UGDEV2026-Object-06",
+      "role": "retain",
+      "question": "What is the archive code of UGDEV2026-Object-06?",
+      "answer": "The archive code of UGDEV2026-Object-06 is qypznrvbjkoz.",
+      "paraphrased_question": "For UGDEV2026-Object-06, which code in the archive was assigned?",
+      "target_aliases": [
+        "qypznrvbjkoz"
+      ]
+    },
+    {
+      "id": "dev:06:1",
+      "entity": "UGDEV2026-Object-06",
+      "role": "retain",
+      "question": "What is the emblem word of UGDEV2026-Object-06?",
+      "answer": "The emblem word of UGDEV2026-Object-06 is dowwzqiofnxp.",
+      "paraphrased_question": "For UGDEV2026-Object-06, which word used as its emblem was assigned?",
+      "target_aliases": [
+        "dowwzqiofnxp"
+      ]
+    },
+    {
+      "id": "dev:07:0",
+      "entity": "UGDEV2026-Object-07",
+      "role": "retain",
+      "question": "What is the archive code of UGDEV2026-Object-07?",
+      "answer": "The archive code of UGDEV2026-Object-07 is cuipldgxneoa.",
+      "paraphrased_question": "For UGDEV2026-Object-07, which code in the archive was assigned?",
+      "target_aliases": [
+        "cuipldgxneoa"
+      ]
+    },
+    {
+      "id": "dev:07:1",
+      "entity": "UGDEV2026-Object-07",
+      "role": "retain",
+      "question": "What is the emblem word of UGDEV2026-Object-07?",
+      "answer": "The emblem word of UGDEV2026-Object-07 is caosrctzghdt.",
+      "paraphrased_question": "For UGDEV2026-Object-07, which word used as its emblem was assigned?",
+      "target_aliases": [
+        "caosrctzghdt"
+      ]
+    },
+    {
+      "id": "dev:08:0",
+      "entity": "UGDEV2026-Object-08",
+      "role": "retain",
+      "question": "What is the archive code of UGDEV2026-Object-08?",
+      "answer": "The archive code of UGDEV2026-Object-08 is byrivyuleakv.",
+      "paraphrased_question": "For UGDEV2026-Object-08, which code in the archive was assigned?",
+      "target_aliases": [
+        "byrivyuleakv"
+      ]
+    },
+    {
+      "id": "dev:08:1",
+      "entity": "UGDEV2026-Object-08",
+      "role": "retain",
+      "question": "What is the emblem word of UGDEV2026-Object-08?",
+      "answer": "The emblem word of UGDEV2026-Object-08 is ssypwxerhpse.",
+      "paraphrased_question": "For UGDEV2026-Object-08, which word used as its emblem was assigned?",
+      "target_aliases": [
+        "ssypwxerhpse"
+      ]
+    },
+    {
+      "id": "dev:09:0",
+      "entity": "UGDEV2026-Object-09",
+      "role": "retain",
+      "question": "What is the archive code of UGDEV2026-Object-09?",
+      "answer": "The archive code of UGDEV2026-Object-09 is twqjcnvfezzs.",
+      "paraphrased_question": "For UGDEV2026-Object-09, which code in the archive was assigned?",
+      "target_aliases": [
+        "twqjcnvfezzs"
+      ]
+    },
+    {
+      "id": "dev:09:1",
+      "entity": "UGDEV2026-Object-09",
+      "role": "retain",
+      "question": "What is the emblem word of UGDEV2026-Object-09?",
+      "answer": "The emblem word of UGDEV2026-Object-09 is jqnmzeqzgmad.",
+      "paraphrased_question": "For UGDEV2026-Object-09, which word used as its emblem was assigned?",
+      "target_aliases": [
+        "jqnmzeqzgmad"
+      ]
+    },
+    {
+      "id": "dev:10:0",
+      "entity": "UGDEV2026-Object-10",
+      "role": "retain",
+      "question": "What is the archive code of UGDEV2026-Object-10?",
+      "answer": "The archive code of UGDEV2026-Object-10 is mcblulyaaqpk.",
+      "paraphrased_question": "For UGDEV2026-Object-10, which code in the archive was assigned?",
+      "target_aliases": [
+        "mcblulyaaqpk"
+      ]
+    },
+    {
+      "id": "dev:10:1",
+      "entity": "UGDEV2026-Object-10",
+      "role": "retain",
+      "question": "What is the emblem word of UGDEV2026-Object-10?",
+      "answer": "The emblem word of UGDEV2026-Object-10 is vjokdpostzfe.",
+      "paraphrased_question": "For UGDEV2026-Object-10, which word used as its emblem was assigned?",
+      "target_aliases": [
+        "vjokdpostzfe"
+      ]
+    },
+    {
+      "id": "dev:11:0",
+      "entity": "UGDEV2026-Object-11",
+      "role": "retain",
+      "question": "What is the archive code of UGDEV2026-Object-11?",
+      "answer": "The archive code of UGDEV2026-Object-11 is sqgntkothvwc.",
+      "paraphrased_question": "For UGDEV2026-Object-11, which code in the archive was assigned?",
+      "target_aliases": [
+        "sqgntkothvwc"
+      ]
+    },
+    {
+      "id": "dev:11:1",
+      "entity": "UGDEV2026-Object-11",
+      "role": "retain",
+      "question": "What is the emblem word of UGDEV2026-Object-11?",
+      "answer": "The emblem word of UGDEV2026-Object-11 is rmbgufburboy.",
+      "paraphrased_question": "For UGDEV2026-Object-11, which word used as its emblem was assigned?",
+      "target_aliases": [
+        "rmbgufburboy"
+      ]
+    },
+    {
+      "id": "dev:12:0",
+      "entity": "UGDEV2026-Object-12",
+      "role": "retain",
+      "question": "What is the archive code of UGDEV2026-Object-12?",
+      "answer": "The archive code of UGDEV2026-Object-12 is ugpwvaeuqgzq.",
+      "paraphrased_question": "For UGDEV2026-Object-12, which code in the archive was assigned?",
+      "target_aliases": [
+        "ugpwvaeuqgzq"
+      ]
+    },
+    {
+      "id": "dev:12:1",
+      "entity": "UGDEV2026-Object-12",
+      "role": "retain",
+      "question": "What is the emblem word of UGDEV2026-Object-12?",
+      "answer": "The emblem word of UGDEV2026-Object-12 is efvfminrncmj.",
+      "paraphrased_question": "For UGDEV2026-Object-12, which word used as its emblem was assigned?",
+      "target_aliases": [
+        "efvfminrncmj"
+      ]
+    },
+    {
+      "id": "dev:13:0",
+      "entity": "UGDEV2026-Object-13",
+      "role": "retain",
+      "question": "What is the archive code of UGDEV2026-Object-13?",
+      "answer": "The archive code of UGDEV2026-Object-13 is flfiopynjofk.",
+      "paraphrased_question": "For UGDEV2026-Object-13, which code in the archive was assigned?",
+      "target_aliases": [
+        "flfiopynjofk"
+      ]
+    },
+    {
+      "id": "dev:13:1",
+      "entity": "UGDEV2026-Object-13",
+      "role": "retain",
+      "question": "What is the emblem word of UGDEV2026-Object-13?",
+      "answer": "The emblem word of UGDEV2026-Object-13 is qpodqzqzidgh.",
+      "paraphrased_question": "For UGDEV2026-Object-13, which word used as its emblem was assigned?",
+      "target_aliases": [
+        "qpodqzqzidgh"
+      ]
+    },
+    {
+      "id": "dev:14:0",
+      "entity": "UGDEV2026-Object-14",
+      "role": "retain",
+      "question": "What is the archive code of UGDEV2026-Object-14?",
+      "answer": "The archive code of UGDEV2026-Object-14 is acouknrzvfal.",
+      "paraphrased_question": "For UGDEV2026-Object-14, which code in the archive was assigned?",
+      "target_aliases": [
+        "acouknrzvfal"
+      ]
+    },
+    {
+      "id": "dev:14:1",
+      "entity": "UGDEV2026-Object-14",
+      "role": "retain",
+      "question": "What is the emblem word of UGDEV2026-Object-14?",
+      "answer": "The emblem word of UGDEV2026-Object-14 is flrvszrgdtwi.",
+      "paraphrased_question": "For UGDEV2026-Object-14, which word used as its emblem was assigned?",
+      "target_aliases": [
+        "flrvszrgdtwi"
+      ]
+    },
+    {
+      "id": "dev:15:0",
+      "entity": "UGDEV2026-Object-15",
+      "role": "retain",
+      "question": "What is the archive code of UGDEV2026-Object-15?",
+      "answer": "The archive code of UGDEV2026-Object-15 is rysxgsjsivre.",
+      "paraphrased_question": "For UGDEV2026-Object-15, which code in the archive was assigned?",
+      "target_aliases": [
+        "rysxgsjsivre"
+      ]
+    },
+    {
+      "id": "dev:15:1",
+      "entity": "UGDEV2026-Object-15",
+      "role": "retain",
+      "question": "What is the emblem word of UGDEV2026-Object-15?",
+      "answer": "The emblem word of UGDEV2026-Object-15 is dzidnfdvbylx.",
+      "paraphrased_question": "For UGDEV2026-Object-15, which word used as its emblem was assigned?",
+      "target_aliases": [
+        "dzidnfdvbylx"
+      ]
+    }
+  ]
+}
