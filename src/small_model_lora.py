@@ -40,7 +40,7 @@ BASE_SHA256 = "709264bff244d021ac31b1fcf9e1733b9af31f75032e854e28db62287b8cd072"
 RUNS = ROOT / "outputs/smollm2_lora"
 AUTHORIZATION = "SmolLM2-135M:development:LoRA-r4-qv:one-SGD-step"
 GUARD_ID = "smollm2_135m_fp32_mps_lora_r4_qv_one_step_v1"
-BASELINE_GUARD_ID = "smollm2_135m_fp32_mps_lora_r4_qv_baseline_v1"
+BASELINE_GUARD_ID = "smollm2_135m_fp32_mps_lora_r4_qv_baseline_v2"
 FORMAT = "unlearnguard_native_lora_v1"
 PARAMETERS = 230400
 MAX_SECONDS = 1800
@@ -126,6 +126,8 @@ def provenance() -> dict[str, Any]:
 def memory_policy(baseline_peak: int = 0, *, mode: str = "pilot") -> dict[str, Any]:
     if mode not in ("pilot", "baseline") or type(baseline_peak) is not int or baseline_peak < 0:
         raise ValueError("invalid LoRA admission mode/RSS")
+    if mode == "baseline":
+        return baseline_memory_policy(baseline_peak)
     terms = {"three_fp32_base_copies": 3 * 538060032,
              "adapter_weights_and_gradients": 2 * 4 * PARAMETERS,
              "source_residency": 269060552, "forward_backward_workspace": 4 * GIB,
@@ -145,6 +147,39 @@ def memory_policy(baseline_peak: int = 0, *, mode: str = "pilot") -> dict[str, A
             "minimum_total_host_bytes": 48 * GIB, "max_process_peak_rss_bytes": 8 * GIB,
             "max_mps_driver_bytes": 8 * GIB, "calibrated_training_requirement": False,
             "scope": "native rank4 q/v one-step mechanics only; baseline conservatively uses same envelope"}
+
+
+def baseline_memory_policy(baseline_peak: int = 0) -> dict[str, Any]:
+    """Task 58 frozen inference only; estimates, never training clearance.
+
+    Reuse the reviewed 76-case baseline's forward/generation allowances,
+    retaining LoRA's larger 4 GiB uncertainty and all continuing safeguards.
+    Three adapter copies cover live weights and transfer/hash staging; no
+    gradients, optimizer or tensor checkpoint serialization is permitted.
+    """
+    if type(baseline_peak) is not int or baseline_peak < 0:
+        raise ValueError("invalid LoRA baseline RSS")
+    terms = {"three_fp32_base_copies": 3 * 538060032,
+             "adapter_weights_and_staging": 3 * 4 * PARAMETERS,
+             "source_residency": 269060552, "forward_workspace": 2 * GIB,
+             "tokenizer_integrity": GIB, "metal_cache": GIB,
+             "additional_process_headroom": max(GIB, baseline_peak),
+             "sequential_generation": 2 * GIB, "uncertainty": 4 * GIB}
+    incremental = sum(terms.values())
+    return {"guard_id": BASELINE_GUARD_ID,
+            "model_id": MODEL_ID, "revision": REVISION, "device": "mps", "precision": "float32",
+            "max_sequence_length": 128, "batch_size": 1,
+            "max_optimizer_steps": 0, "backward_permitted": False,
+            "optimizer_state_bytes": 0, "adapter_gradient_bytes": 0,
+            "checkpoint_serialization_bytes": 0,
+            "estimated_incremental_terms_bytes": terms,
+            "estimated_incremental_total_bytes": incremental,
+            "preload_available_required_bytes": math.ceil(incremental / GIB) * GIB + 6 * GIB,
+            "continuing_available_required_bytes": 6 * GIB,
+            "minimum_total_host_bytes": 48 * GIB, "max_process_peak_rss_bytes": 8 * GIB,
+            "max_mps_driver_bytes": 8 * GIB, "calibrated_training_requirement": False,
+            "calibrated_inference_requirement": False,
+            "scope": "frozen zero-effect native rank4 q/v; 76 sequential probes; no backward/update/checkpoint"}
 
 
 def counter_checks(sample, *, previous=None, first=None, active=False, before_load=False, mode="pilot"):
@@ -401,10 +436,10 @@ def validate_native_baseline(report, manifest, historical, expected_provenance):
                 "model_loaded": True, "actual_device": "mps", "precision": "float32",
                 "training_authorized": False, "optimizer_created": False, "optimizer_steps": 0,
                 "step_attempted": False, "backward_attempted": False, "backward_count": 0,
-                "checkpoint_writes": 0, "base_checkpoint_unchanged": True,
+                "checkpoint_writes": 0, "checkpoint_write_attempted": False, "base_checkpoint_unchanged": True,
                 "base_parameter_sha256_before": BASE_SHA256, "base_parameter_sha256_after": BASE_SHA256,
                 "checkpoint": historical["checkpoint"],
-                "base_versions_unchanged": True, "initial_adapter_zero_effect": True,
+                "base_versions_unchanged": True, "adapter_versions_unchanged": True, "initial_adapter_zero_effect": True,
                 "adapter_parameter_count": PARAMETERS, "trainable_parameter_count": 0, "adapter_tensor_count": 120,
                 "encoding_sha256": historical["encoding_sha256"], "downloads_enabled": False,
                 "seed": 2026, "deterministic_algorithms": True}
@@ -623,6 +658,7 @@ def run(*, mode, enabled, authorization, run_path, baseline_path=None, baseline_
                      for name in originals}
         adapters = adapter_parameters(wrappers)
         versions = tuple(p._version for p in originals.values())
+        adapter_versions = tuple(p._version for p in adapters.values())
         validate_layout(model, originals, wrappers, torch, training=False)
         if fingerprint(originals) != BASE_SHA256 or fingerprint(adapters) != report["adapter_sha256_before"]:
             raise RuntimeError("device transfer changed parameter bytes")
@@ -646,7 +682,7 @@ def run(*, mode, enabled, authorization, run_path, baseline_path=None, baseline_
         report["evaluation_before"] = acquisition.evaluate(model, tokenizer, examples, manifest, torch, device, monitor)
         acquisition.validate_baseline({**historical, "evaluation": report["evaluation_before"]}, manifest)
         compare_rows(report["evaluation_before"], historical["evaluation"])
-        if baseline is not None:
+        if mode == "pilot":
             if report["adapter_sha256_before"] != baseline["adapter_sha256_before"]:
                 raise ValueError("adapter initialization differs from sealed LoRA baseline")
             compare_rows(report["evaluation_before"], baseline["evaluation"])
@@ -673,6 +709,7 @@ def run(*, mode, enabled, authorization, run_path, baseline_path=None, baseline_
             base_integrity()
             report["evaluation"] = acquisition.evaluate(model, tokenizer, examples, manifest, torch, device, monitor)
         else:
+            validate_layout(model, originals, wrappers, torch, training=False)
             report["evaluation"] = report["evaluation_before"]
             report["adapter_sha256_after"] = fingerprint(adapters)
             if report["adapter_sha256_after"] != report["adapter_sha256_before"]:
@@ -681,6 +718,12 @@ def run(*, mode, enabled, authorization, run_path, baseline_path=None, baseline_
         prerequisites()
         report["base_parameter_sha256_after"] = fingerprint(originals)
         report["base_versions_unchanged"] = tuple(p._version for p in originals.values()) == versions
+        if mode == "baseline":
+            # Check before cleanup can erase evidence of unexpected gradients.
+            validate_layout(model, originals, wrappers, torch, training=False)
+            report["adapter_versions_unchanged"] = tuple(p._version for p in adapters.values()) == adapter_versions
+            if not report["adapter_versions_unchanged"]:
+                raise RuntimeError("read-only baseline changed adapter versions")
         report["base_checkpoint_unchanged"] = True
         if fingerprint(adapters) != report["adapter_sha256_after"]:
             raise RuntimeError("evaluation changed adapter bytes")

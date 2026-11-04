@@ -4,6 +4,7 @@ No checkpoint/model loading, real backward or optimizer.step is permitted.
 """
 
 import contextlib
+import ast
 import copy
 import io
 import json
@@ -57,6 +58,79 @@ class OfflineCase(unittest.TestCase):
 
 
 class PolicyTests(OfflineCase):
+    def test_readonly_policy_terms_and_training_dictionary_preserved(self):
+        p = lora.baseline_memory_policy()
+        self.assertEqual(p, lora.memory_policy(mode="baseline"))
+        self.assertEqual(p["guard_id"], "smollm2_135m_fp32_mps_lora_r4_qv_baseline_v2")
+        self.assertEqual(p["estimated_incremental_total_bytes"], 13697165512)
+        self.assertEqual(p["preload_available_required_bytes"], 19 * lora.GIB)
+        self.assertEqual(lora.baseline_memory_policy(3 * lora.GIB)["preload_available_required_bytes"], 21 * lora.GIB)
+        self.assertEqual(p["estimated_incremental_terms_bytes"]["adapter_weights_and_staging"], 2764800)
+        for key in ("max_optimizer_steps", "optimizer_state_bytes", "adapter_gradient_bytes", "checkpoint_serialization_bytes"):
+            self.assertEqual(p[key], 0)
+        self.assertFalse(p["backward_permitted"])
+        # Literal Task 53 policy: protect every field, not only the 20 GiB floor.
+        expected = {"guard_id": "smollm2_135m_fp32_mps_lora_r4_qv_one_step_v1",
+            "model_id": lora.MODEL_ID, "revision": lora.REVISION, "device": "mps", "precision": "float32",
+            "max_sequence_length": 128, "batch_size": 1, "max_optimizer_steps": 1,
+            "backward_permitted": True, "optimizer_state_bytes": 0,
+            "estimated_incremental_terms_bytes": {
+                "three_fp32_base_copies": 1614180096, "adapter_weights_and_gradients": 1843200,
+                "source_residency": 269060552, "forward_backward_workspace": 4 * lora.GIB,
+                "tokenizer_integrity": lora.GIB, "metal_cache": lora.GIB,
+                "additional_process_headroom": lora.GIB, "adapter_clipping_step_save": lora.GIB,
+                "uncertainty": 4 * lora.GIB},
+            "estimated_incremental_total_bytes": 14769985736,
+            "preload_available_required_bytes": 20 * lora.GIB,
+            "continuing_available_required_bytes": 6 * lora.GIB,
+            "minimum_total_host_bytes": 48 * lora.GIB, "max_process_peak_rss_bytes": 8 * lora.GIB,
+            "max_mps_driver_bytes": 8 * lora.GIB, "calibrated_training_requirement": False,
+            "scope": "native rank4 q/v one-step mechanics only; baseline conservatively uses same envelope"}
+        self.assertEqual(lora.memory_policy(), expected)
+        for bad in (-1, True, 1.0, None):
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                lora.baseline_memory_policy(bad)
+
+    def test_each_mode_checks_its_own_exact_preload_boundary(self):
+        for mode, peak, floor in (("baseline", lora.GIB, 19), ("baseline", 3 * lora.GIB, 21),
+                                  ("pilot", lora.GIB, 20), ("pilot", 3 * lora.GIB, 22)):
+            reading = {**sample(), "process_peak_rss_bytes": peak,
+                       "available_physical_memory_lower_bound_bytes": floor * lora.GIB}
+            lora.counter_checks(reading, before_load=True, mode=mode)
+            reading["available_physical_memory_lower_bound_bytes"] -= 1
+            with self.subTest(mode=mode, peak=peak), self.assertRaisesRegex(RuntimeError, "preload"):
+                lora.counter_checks(reading, before_load=True, mode=mode)
+        # Task 57 reading remains insufficient; this policy was not fitted to it.
+        reading = {**sample(), "available_physical_memory_lower_bound_bytes": 18465570816}
+        with self.assertRaisesRegex(RuntimeError, "19 GiB"):
+            lora.counter_checks(reading, before_load=True, mode="baseline")
+
+    def test_baseline_preserves_all_common_telemetry_stops(self):
+        first = sample(timestamp=1_000_000_000)
+        previous = sample(timestamp=2_000_000_000)
+        current = sample(timestamp=3_000_000_000)
+        for key, value in (("available_physical_memory_lower_bound_bytes", 6 * lora.GIB - 1),
+                           ("total_physical_memory_bytes", 32 * lora.GIB),
+                           ("macos_pressure_level", 2), ("system_memory_free_percentage", 19),
+                           ("swap_used_bytes", 1), ("pageouts", 1),
+                           ("mps_driver_allocated_bytes", 8 * lora.GIB + 1),
+                           ("process_peak_rss_bytes", 8 * lora.GIB + 1),
+                           ("sample_duration_ns", 0), ("timestamp_ns", 4_000_000_001)):
+            with self.subTest(key=key), self.assertRaises(RuntimeError):
+                lora.counter_checks({**current, key: value}, previous=previous, first=first,
+                                    active=True, mode="baseline")
+
+    def test_backward_and_optimizer_construction_exist_only_in_guarded_step(self):
+        tree = ast.parse(Path(lora.__file__).read_text())
+        calls = []
+        for function in tree.body:
+            if isinstance(function, ast.FunctionDef):
+                for node in ast.walk(function):
+                    if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+                        if node.func.attr in ("backward", "SGD", "AdamW", "step"):
+                            calls.append((function.name, node.func.attr))
+        self.assertEqual(calls, [("one_step", "backward"), ("one_step", "SGD"), ("one_step", "step")])
+
     def test_default_cli_rejects_even_transitive_ml_imports(self):
         code = '''
 import sys, json
@@ -239,6 +313,24 @@ class NativeAlgebraTests(OfflineCase):
     def tiny(self):
         torch.manual_seed(2026)
         return native.LoRALinear(torch.nn.Linear(3, 2, bias=False), rank=2, alpha=4)
+
+    def test_frozen_native_inference_preserves_base_and_adapter_bytes_and_versions(self):
+        layer = self.tiny().requires_grad_(False).eval()
+        params = dict(layer.named_parameters())
+        before = lora.fingerprint(params)
+        versions = tuple(p._version for p in params.values())
+        with mock.patch.object(torch.optim, "SGD", side_effect=AssertionError("inference optimizer")) as sgd, \
+                mock.patch.object(torch.optim, "AdamW", side_effect=AssertionError("inference optimizer")) as adam, \
+                torch.inference_mode():
+            for _ in range(3):
+                output = layer(torch.tensor([[0.2, -0.3, 0.5]]))
+                self.assertFalse(output.requires_grad)
+                self.assertIsNone(output.grad_fn)
+                self.assertTrue(torch.is_inference_mode_enabled())
+        self.assertEqual(lora.fingerprint(params), before)
+        self.assertEqual(tuple(p._version for p in params.values()), versions)
+        self.assertTrue(all(not p.requires_grad and p.grad is None for p in params.values()))
+        sgd.assert_not_called(); adam.assert_not_called()
 
     def test_initial_zero_effect_base_freeze_and_deterministic_initialization(self):
         layer = self.tiny()
@@ -456,6 +548,15 @@ class LayoutValidationTests(OfflineCase):
             self.assertEqual(list(result), list(adapters))
             self.assertEqual(sum(p.numel() for p in result.values()), 230400)
 
+    def test_readonly_layout_rejects_trainability_and_gradients_in_either_parameter_group(self):
+        for group in ("base", "adapter"):
+            for field, value in (("requires_grad", True), ("grad", object())):
+                model, originals, wrappers, adapters, _ = self.fixture(training=False)
+                parameter = next(iter((originals if group == "base" else adapters).values()))
+                setattr(parameter, field, value)
+                with self.subTest(group=group, field=field), self.assertRaises(RuntimeError):
+                    lora.validate_layout(model, originals, wrappers, torch, training=False)
+
     def test_base_and_adapter_trainability_dtype_device_shape_or_gradient_drift_stop(self):
         for kind in ("base_trainable", "base_gradient", "adapter_frozen", "dtype", "device", "shape", "base_tie", "scale", "missing"):
             model, originals, wrappers, adapters, _ = self.fixture()
@@ -618,7 +719,7 @@ class MockRunTests(OfflineCase):
             self.adapters[name] = SimpleNamespace(numel=lambda shape=shape: math.prod(shape),
                 eq=lambda value: SimpleNamespace(all=lambda: SimpleNamespace(item=lambda: True)),
                 ne=lambda value: SimpleNamespace(any=lambda: SimpleNamespace(item=lambda: self.state.changed)),
-                requires_grad_=mock.Mock())
+                requires_grad_=mock.Mock(), _version=0)
         self.monitor = SimpleNamespace(samples=[], stage="", start=mock.Mock(), close=mock.Mock(), check=mock.Mock())
         self.tick = time.monotonic_ns() - 1_000_000_000
         def capture(stage, **kwargs):
@@ -694,15 +795,100 @@ class MockRunTests(OfflineCase):
             yield update, saver
 
     def test_baseline_is_sealed_no_update_and_independently_validated(self):
-        with mock.patch.object(lora, "one_step", side_effect=AssertionError("baseline attempted update")) as step:
+        with mock.patch.object(lora, "one_step", side_effect=AssertionError("baseline attempted update")) as step, \
+                mock.patch.object(lora, "save_adapter", side_effect=AssertionError("baseline attempted checkpoint")) as save, \
+                mock.patch.object(torch.optim, "SGD", side_effect=AssertionError("baseline created optimizer")) as sgd, \
+                mock.patch.object(torch.optim, "AdamW", side_effect=AssertionError("baseline created optimizer")) as adam:
             path, report = self.baseline()
         step.assert_not_called()
+        save.assert_not_called(); sgd.assert_not_called(); adam.assert_not_called()
+        self.model.train.assert_not_called()
+        self.model.gradient_checkpointing_enable.assert_not_called()
+        self.model.save_pretrained.assert_not_called()
+        for p in self.adapters.values(): p.requires_grad_.assert_not_called()
         self.assertEqual(path.stat().st_mode & 0o222, 0)
         self.assertTrue((path.parent / "COMPLETE.json").exists())
         self.assertFalse((path.parent / "checkpoint").exists())
         lora.validate_native_baseline(report, self.manifest, self.historical, self.fake_provenance)
         self.assertEqual(report["optimizer_steps"], 0)
         self.assertEqual(report["adapter_sha256_after"], report["adapter_sha256_before"])
+        self.assertTrue(report["adapter_versions_unchanged"])
+        self.assertFalse(report["checkpoint_write_attempted"])
+
+    def test_baseline_rejects_base_or_adapter_hash_and_version_drift(self):
+        evaluate = lora.acquisition.evaluate.side_effect
+        for kind in ("base_hash", "base_version", "adapter_hash", "adapter_version", "layout"):
+            self.original._version = 0
+            next(iter(self.adapters.values()))._version = 0
+            def drift(*args):
+                rows = evaluate(*args)
+                if kind == "base_version": self.original._version += 1
+                elif kind == "adapter_version": next(iter(self.adapters.values()))._version += 1
+                elif kind == "adapter_hash": self.state.changed = True
+                elif kind == "base_hash":
+                    lora.fingerprint.side_effect = lambda params: "c" * 64
+                else:
+                    lora.validate_layout.side_effect = RuntimeError("frozen layout drift")
+                return rows
+            with self.subTest(kind=kind), mock.patch.object(lora.acquisition, "evaluate", side_effect=drift), \
+                    mock.patch.object(lora, "one_step") as step, mock.patch.object(lora, "save_adapter") as save:
+                result = lora.run(mode="baseline", enabled=True, authorization=None,
+                                  run_path=self.root / ("baseline-drift-" + kind))
+            self.assertEqual(result["status"], "STOP", result)
+            self.assertFalse((self.root / ("baseline-drift-" + kind) / "COMPLETE.json").exists())
+            step.assert_not_called(); save.assert_not_called()
+            self.state.changed = False
+            lora.validate_layout.side_effect = None
+            lora.fingerprint.side_effect = lambda params: lora.BASE_SHA256 if "original.weight" in params else "a" * 64
+
+    def test_insufficient_memory_at_either_preload_leaves_evidence_and_no_load(self):
+        capture = self.monitor.capture
+        for fail_at in ("preload", "before_load"):
+            def checked_capture(stage, **kwargs):
+                reading = capture(stage, **kwargs)
+                reading["available_physical_memory_lower_bound_bytes"] = (19 * lora.GIB - 1 if stage == fail_at else 19 * lora.GIB)
+                lora.counter_checks(reading, mode="baseline", before_load=True)
+                return reading
+            self.monitor.samples.clear()
+            self.monitor.capture = checked_capture
+            result = lora.run(mode="baseline", enabled=True, authorization=None,
+                              run_path=self.root / ("baseline-memory-" + fail_at))
+            self.assertEqual(result["status"], "STOP")
+            self.assertIn("19 GiB", result["error"])
+            self.assertFalse(result["model_loaded"])
+            self.assertEqual(result["measurements"][-1]["stage"], fail_at)
+            path = self.root / ("baseline-memory-" + fail_at)
+            self.assertTrue((path / "FAILED.json").is_file())
+            self.assertEqual((path / "report.json").stat().st_mode & 0o222, 0)
+            self.assertFalse((path / "COMPLETE.json").exists())
+            self.loader.assert_not_called()
+
+    def test_baseline_cannot_overwrite_or_reuse_sealed_output(self):
+        path, _ = self.baseline()
+        before = {p.name: lora.sha256_file(p) for p in path.parent.iterdir()}
+        self.loader.reset_mock()
+        with self.assertRaises(ValueError):
+            lora.run(mode="baseline", enabled=True, authorization=None, run_path=path.parent)
+        self.assertEqual(before, {p.name: lora.sha256_file(p) for p in path.parent.iterdir()})
+        self.loader.assert_not_called()
+
+    def test_19_gib_admits_only_baseline_even_with_valid_pilot_authorization(self):
+        capture = self.monitor.capture
+        def checked_capture(stage, **kwargs):
+            reading = capture(stage, **kwargs)
+            reading["available_physical_memory_lower_bound_bytes"] = 19 * lora.GIB
+            lora.counter_checks(reading, mode=self.monitor.mode, before_load=True)
+            return reading
+        self.monitor.capture = checked_capture
+        path, report = self.baseline()
+        self.assertEqual(report["memory_policy"]["preload_available_required_bytes"], 19 * lora.GIB)
+        self.loader.reset_mock()
+        with self.fake_update() as (step, save):
+            result = self.pilot(path)
+        self.assertEqual(result["status"], "STOP")
+        self.assertIn("20 GiB", result["error"])
+        self.assertFalse(result["model_loaded"])
+        self.loader.assert_not_called(); step.assert_not_called(); save.assert_not_called()
 
     def test_mocked_one_step_success_saves_only_new_namespace(self):
         path, _ = self.baseline()
@@ -792,13 +978,14 @@ class MockRunTests(OfflineCase):
         _, report = self.baseline()
         mutations = ({"optimizer_steps": 1}, {"backward_count": 1}, {"actual_device": "cpu"},
                      {"base_parameter_sha256_after": "b" * 64}, {"trainable_parameter_count": 1},
-                     {"provenance": {}}, {"adapter_sha256_after": "c" * 64})
+                     {"provenance": {}}, {"adapter_sha256_after": "c" * 64},
+                     {"adapter_versions_unchanged": False}, {"checkpoint_write_attempted": True})
         for mutation in mutations:
             with self.subTest(mutation=mutation), self.assertRaises(ValueError):
                 lora.validate_native_baseline({**report, **mutation}, self.manifest, self.historical, self.fake_provenance)
         for kind in ("preload", "gap", "swap", "case_boundary", "peaks", "policy", "nan", "generation", "order"):
             changed = copy.deepcopy(report)
-            if kind == "preload": changed["measurements"][0]["available_physical_memory_lower_bound_bytes"] = 20 * lora.GIB - 1
+            if kind == "preload": changed["measurements"][0]["available_physical_memory_lower_bound_bytes"] = 19 * lora.GIB - 1
             elif kind == "gap": changed["measurements"][-1]["timestamp_ns"] += 3_000_000_000
             elif kind == "swap": changed["measurements"][-1]["swap_used_bytes"] = 1
             elif kind == "case_boundary":

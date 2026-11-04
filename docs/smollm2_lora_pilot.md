@@ -1,5 +1,12 @@
 # Task 53: Guarded native SmolLM2 LoRA pilot
 
+**Task 58 update:** the failed baseline used training memory assumptions.
+The separate [read-only admission review and current Terminal procedure](smollm2_lora_baseline_admission_task58.md)
+now use baseline guard v2 and a conservative 19 GiB minimum (21 GiB at
+preload RSS B=3 GiB). Training's complete 20 GiB policy and authorization
+safeguards remain unchanged. The old `baseline-task53-001` directory contains
+a sealed STOP and must never be reused. No fresh baseline has run in Task 58.
+
 **Decision: CONDITIONAL GO for the first separately authorized local LoRA
 optimizer step, after the new read-only LoRA baseline passes and fresh memory
 admission succeeds. No execution clearance is granted by this preparation.**
@@ -25,7 +32,7 @@ original validator, and [Task 45's evaluation audit](smollm2_baseline_findings_t
 | Evidence | What it establishes | What it does not establish |
 |---|---|---|
 | Task 37 | FP32/MPS full-base backward, finite nonzero gradients, unchanged weights; sequences 74/42 tokens. Starting availability 28.333603 GiB, sampled driver maximum 2,659,057,664 bytes, OS RSS high-water mark 1,301,889,024 bytes. | No optimizer or save; no native LoRA runtime proof or measured LoRA requirement. |
-| Task 40 baseline-002 | Complete frozen 76-case evaluation, zero updates. Starting availability 19.924728 GiB, sampled driver maximum 2,304,868,352 bytes, RSS high-water mark 2,676,031,488 bytes. | No training/save fit. That historical start would fail the new 20 GiB floor too. |
+| Task 40 baseline-002 | Complete frozen 76-case evaluation, zero updates. Starting availability 19.924728 GiB, sampled driver maximum 2,304,868,352 bytes, RSS high-water mark 2,676,031,488 bytes. | No training/save fit. That historical start would fail Task 53's original 20 GiB baseline floor. |
 | Task 45 | 0/64 development recovery/exact matches, 0/12 utility exact matches; every generation exhausted 64 tokens. Direct probes reuse training facts; paraphrases are exposed development wordings. | NLL or exact-match changes alone cannot certify acquired facts, selective forgetting, general utility retention or privacy. |
 
 The pinned base is `HuggingFaceTB/SmolLM2-135M`, revision
@@ -86,7 +93,9 @@ assumptions; unsupported behavior or missing gradients causes STOP.
 
 The implemented guard is `smollm2_135m_fp32_mps_lora_r4_qv_one_step_v1`.
 The zero-update baseline has a distinct guard ID and permits no backward or
-optimizer; it conservatively uses the same estimated envelope. No full-parameter
+optimizer. Task 53 originally used the same estimated envelope; Task 58
+replaces only baseline admission with the separate policy linked above.
+The formula below remains the unchanged **training** policy. No full-parameter
 guard is reused or lowered. With W = 538,060,032 base FP32 bytes,
 L = 921,600 adapter FP32 bytes, S = 269,060,552 source bytes and B = live
 preload process lifetime peak RSS:
@@ -173,7 +182,7 @@ a STOP, requiring a new reviewed name, never deletion of an old run:
 PYTORCH_ENABLE_MPS_FALLBACK=0 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
   TOKENIZERS_PARALLELISM=false .venv-ml/bin/python -B -m src.small_model_lora \
   --run-baseline \
-  --run-dir outputs/smollm2_lora/baseline-task53-001
+  --run-dir outputs/smollm2_lora/baseline-task58-001
 ```
 
 Accept only `lora_baseline_complete_no_updates`, zero backward/optimizer steps,
@@ -187,7 +196,7 @@ These are preregistered identity/drift gates, not acquisition thresholds.
 Review the saved baseline report and obtain its external checksum:
 
 ```sh
-shasum -a 256 outputs/smollm2_lora/baseline-task53-001/report.json
+shasum -a 256 outputs/smollm2_lora/baseline-task58-001/report.json
 ```
 
 Retain that **reviewed** checksum independently. It cannot be specified in
@@ -203,7 +212,7 @@ PYTORCH_ENABLE_MPS_FALLBACK=0 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
   TOKENIZERS_PARALLELISM=false .venv-ml/bin/python -B -m src.small_model_lora \
   --run-one-step \
   --authorize-weight-update 'SmolLM2-135M:development:LoRA-r4-qv:one-SGD-step' \
-  --lora-baseline outputs/smollm2_lora/baseline-task53-001/report.json \
+  --lora-baseline outputs/smollm2_lora/baseline-task58-001/report.json \
   --lora-baseline-sha256 "$lora_baseline_sha256" \
   --run-dir outputs/smollm2_lora/pilot-task53-001
 ```
