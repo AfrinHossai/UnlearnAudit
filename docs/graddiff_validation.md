@@ -1,6 +1,6 @@
 # GradDiff implementation validation and training feasibility
 
-**Decision:** No-go for real-model optimizer steps. The local scalar GradDiff objective and gradients match deterministic transcriptions of the pinned OpenUnlearning handler and Transformers loss on synthetic tensors. Task 14 adds a separate read-only real-model integration command, but it has not loaded the checkpoint weights or been run end to end; the repository still has no real-model training path.
+**Decision:** No-go for real-model optimizer steps. Task 16 implemented a guarded real-model runner; Task 17 audits its gates and adds a separate FP32 read-only preflight. Neither has loaded the full checkpoint in this task. See [the preflight findings, exact Terminal command, estimates, and stop conditions](graddiff_preflight.md). The scalar GradDiff objective and gradients match deterministic source transcriptions on synthetic tensors; full-model training readiness remains unverified.
 
 ## Scope and pinned references
 
@@ -36,7 +36,7 @@ The pinned `finetune.yaml` defaults to per-device batch size 8, accumulation 4, 
 
 On 2026-11-03, `./.venv-ml/bin/python -m unittest discover -s tests -v` passed all 39 repository tests with no skips outside the restricted sandbox. The MPS test initially skipped inside the sandbox because Metal is hidden there; the MPS-specific tests passed when rerun in a normal local process. The three-step synthetic CPU and MPS CLI dry runs both passed all finite-value and loss-direction assertions. The GradDiff synthetic runs loaded no model checkpoint or external training data. The installed environment is Python 3.11.18, PyTorch 2.9.1, and Transformers 4.57.1, so it still differs from the pinned OpenUnlearning dependency set.
 
-The host reports 51,539,607,552 bytes of total physical memory through `os.sysconf('SC_PHYS_PAGES') * os.sysconf('SC_PAGE_SIZE')` (48 GiB). This is total capacity, not current free memory. The planning envelope remains 27.1–31.1 GiB using an 8–12 GiB runtime reserve and selected live-tensor estimates; it leaves 16.9–20.9 GiB of the reported total on paper for uncounted activations and transients. The reserve and peak are not measured. No full-model load, backward pass, optimizer step, runtime, or out-of-memory threshold was measured.
+The host reports 51,539,607,552 bytes of total physical memory through `os.sysconf('SC_PHYS_PAGES') * os.sysconf('SC_PAGE_SIZE')` (48 GiB). This is total capacity, not current free memory. The historical planning envelope was 27.1–31.1 GiB using an 8–12 GiB runtime reserve and selected live-tensor estimates; it leaves 16.9–20.9 GiB of the reported total on paper for uncounted activations and transients. The reserve and peak are not measured. No full-model load, backward pass, optimizer step, runtime, or out-of-memory threshold was measured.
 
 No implementation correction was needed for the GradDiff signs or coefficients. One justified correction was made to cast logits to FP32 before cross entropy, matching the pinned Transformers loss and improving reduced-precision numerical behavior. The planned experiment config was also corrected to pin the upstream source, dependency versions, zero weight decay, and zero warmup ratio.
 
@@ -70,9 +70,9 @@ For an OpenUnlearning-faithful primary experiment, use the pinned Linux CUDA pat
 **No-go for a real-model weight update with the current repository implementation.** The synthetic equation, token shift, ignore-label reduction, and reduced-precision loss upcast are covered; the upstream source-level arithmetic matches on deterministic test tensors. The following remain unresolved:
 
 - Execute the actual pinned OpenUnlearning handler and Transformers 4.51.3 on the same tiny causal model and compare losses and every model-parameter gradient.
-- Implement/verify real tokenizer formatting, answer-only target masks, attention-mask forwarding, paired batch collation, and retain sampling.
+- Fixture tests and cached-tokenizer checks cover formatting, masks and collation; validate their full-model loss behavior with the read-only preflight.
 - Implement/verify gradient accumulation and optimizer/scheduler stepping. Current helper steps once per call and uses Torch AdamW, unlike the pinned Trainer plus paged AdamW.
 - Exercise the model loader and collect peak MPS memory, full-model throughput, and numerical stability at length 512.
 - Validate checkpoints, rollback, and the official evaluator before any actual TOFU run.
 
-**Conditional feasibility:** the read-only one-forget/one-retain model smoke is implemented and ready for a physical-device run using the existing cache. It has not yet validated full-model loss parity or peak memory. The training prototype remains synthetic-only. No checkpoint weights were loaded in Task 14, no TOFU data was used for training, no unlearning occurred, and no historical result was changed.
+**Conditional feasibility:** the optional FP32 preflight can be attempted with the existing cache in a normal macOS Terminal. It requires 20 GiB of free plus speculative physical memory before loading and stops on insufficient or unknown telemetry. The Task 17 telemetry-only reading was about 17.4 GiB, below that threshold. The new conservative training estimate is 42.42 GiB against 48 GiB total, leaving only 5.58 GiB on paper; this is not measured training fit. No full-model loss/memory result exists yet. The real-model update path is implemented but remains unexecuted, and no historical result was changed.

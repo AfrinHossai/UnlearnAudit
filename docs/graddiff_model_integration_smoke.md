@@ -1,5 +1,7 @@
 # Read-only GradDiff integration smoke with the cached TOFU model
 
+For Task 17 training-readiness checks, use the newer [FP32 preflight](graddiff_preflight.md). It adds manifest-selected cases and available-physical-memory stop checks. The older smoke below uses FP16 on MPS and has no available-memory guard; its result would not validate the FP32 training profile.
+
 **Status:** The integration helpers, fixture tests, and local-tokenizer/data preparation check are complete. The 2.47 GB checkpoint weights have not been loaded by this integration path, and the full-model smoke command below has not been executed. No optimizer, backward pass, weight update, or checkpoint write is part of the command.
 
 ## Pinned local assets
@@ -44,6 +46,6 @@ The code uses `local_files_only=True`, sets `HF_HUB_OFFLINE=1`, and reads the pi
 
 ## Lightweight validation and limits
 
-`tests/test_graddiff_model_integration.py` uses a tiny fixture tokenizer and causal LM to test chat-boundary failures, answer/EOS masks, causal loss matching, separate forget/retain batches, right padding, device selection, model/tokenizer mismatch errors, non-finite losses, existing gradients, and read-only weight invariants. At the time of this smoke-plan validation, the repository suite passed 56 tests outside the restricted sandbox. The current repository suite has 65 tests; 64 passed in the restricted process and one MPS-only test was skipped because MPS is unavailable there. A one-element MPS probe also confirmed the memory reporter can read host capacity, process peak RSS, MPS tensor allocation, and MPS driver allocation; it did not load the checkpoint.
+`tests/test_graddiff_model_integration.py` uses a tiny fixture tokenizer and causal LM to test chat-boundary failures, answer/EOS masks, causal loss matching, separate forget/retain batches, right padding, device selection, model/tokenizer mismatch errors, non-finite losses, existing gradients, and read-only weight invariants. At the time of this smoke-plan validation, the repository suite passed 56 tests outside the restricted sandbox. At Task 16, the repository suite had 65 tests; 64 passed in the restricted process and one MPS-only test was skipped because MPS is unavailable there. A one-element MPS probe also confirmed the memory reporter can read host capacity, process peak RSS, MPS tensor allocation, and MPS driver allocation; it did not load the checkpoint.
 
 The real tokenizer/config compatibility and token preparation have been checked locally. A physical-device run is still required to validate model loading, tied embedding compatibility, model-reported loss parity, actual MPS memory snapshots, and runtime. The exact OpenUnlearning Trainer/collator and its training optimizer are not executed by this read-only path. No real-model unlearning or weight update has occurred.

@@ -527,6 +527,8 @@ def _save_checkpoint_safely(model: Any, tokenizer: Any, path: str | Path) -> str
 
 
 def _update_mode_requirements(args: argparse.Namespace) -> tuple[Path, Path | None]:
+    if not getattr(args, "apply_updates", False) or getattr(args, "dry_run", False):
+        raise ValueError("weight updates require --apply-updates and cannot use --dry-run")
     _validate_numeric_options(args)
     if args.device is None:
         raise ValueError("weight updates require an explicit --device mps or --device cpu")

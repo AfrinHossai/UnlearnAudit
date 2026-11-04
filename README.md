@@ -74,6 +74,18 @@ The repository tests cover loss normalization, gradient signs, error handling, a
 
 ### Safe validation and future one-step command
 
+Task 17 adds an optional FP32 read-only preflight with manifest cases, physical-memory guards, current RSS, MPS allocations and loss checks. The exact command for a normal macOS Terminal is:
+
+```sh
+env -u CONDA_PREFIX -u CONDA_DEFAULT_ENV -u PYTHONHOME -u PYTHONPATH \
+  HF_HUB_OFFLINE=1 \
+  ./.venv-ml/bin/python -m src.graddiff_preflight \
+  --run-preflight --device mps \
+  --report-path outputs/graddiff-preflight-fp32-mps-2026-11-03.json
+```
+
+Omitting `--run-preflight` prints a plan without loading weights. This command has no backward, optimizer, or checkpoint-save path. It stops below 20 GiB free plus speculative physical memory before load, below 6 GiB afterwards, below 20% system memory free percentage, or if required telemetry is unknown. Stop manually if Activity Monitor shows yellow/red pressure or rapidly growing swap. The telemetry-only check observed about 17.4 GiB available by this conservative measure, so memory must be reclaimed before model loading. Full-model inference was not executed. The revised training estimate is 42.42 GiB against 48 GiB total; this does not prove fit. See [verified findings, estimates, and stop conditions](docs/graddiff_preflight.md). A successful read-only preflight does not enable training.
+
 Use the existing project-local environment. The default validation reads only the pinned local config, tokenizer, and checksum-verified dataset files; it does not deserialize model weights, create an optimizer, or update parameters:
 
 ```sh
@@ -97,7 +109,7 @@ env -u CONDA_PREFIX -u CONDA_DEFAULT_ENV -u PYTHONHOME -u PYTHONPATH \
   --save-checkpoint outputs/graddiff-step1-mps-2026-11-03
 ```
 
-The runner is local-only and fails if pinned files are missing; it does not download data or model weights. CPU use must be selected by changing `--device mps` to `--device cpu`; there is no automatic device fallback. Model outputs and checkpoints can be written only under the Git-ignored `outputs/` directory, and existing paths or the original TOFU checkpoint are rejected. Reports store dataset checksums, split row indices, loss components, hyperparameters, memory snapshots, and the actual device, but no question/answer text, environment secrets, or model weights. The FP32 AdamW state floor is estimated at 18.42 GiB, with a 27.1–31.1 GiB planning envelope; neither figure is a measured training peak. The local runner omits upstream distributed sampling, gradient accumulation, scheduler, paged AdamW, BF16, and FlashAttention, so its output must not be reported as an official benchmark reproduction. See [docs/graddiff_experiment_plan.md](docs/graddiff_experiment_plan.md) for readiness limits and deviations.
+The runner is local-only and fails if pinned files are missing; it does not download data or model weights. CPU use must be selected by changing `--device mps` to `--device cpu`; there is no automatic device fallback. Model outputs and checkpoints can be written only under the Git-ignored `outputs/` directory, and existing paths or the original TOFU checkpoint are rejected. Reports store dataset checksums, split row indices, loss components, hyperparameters, memory snapshots, and the actual device, but no question/answer text, environment secrets, or model weights. The FP32 AdamW state floor is estimated at 18.42 GiB, with an earlier 27.1–31.1 GiB planning envelope. Task 17 uses the stricter 42.42 GiB estimate above for readiness; none is a measured training peak. The local runner omits upstream distributed sampling, gradient accumulation, scheduler, paged AdamW, BF16, and FlashAttention, so its output must not be reported as an official benchmark reproduction. See [docs/graddiff_experiment_plan.md](docs/graddiff_experiment_plan.md) for readiness limits and deviations.
 
 ## Local ML Environment Smoke Test
 
