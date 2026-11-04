@@ -77,6 +77,8 @@ The twelve generic probes are deliberately authored, separately licensed and pub
 
 ## Memory policy and establishing a future model-specific threshold
 
+**Task 25 physical read-only preparation:** use the [new explicit owner-run command](smollm2_readonly_preflight.md#exact-normal-terminal-command) for a bounded pinned SmolLM2 load and single inference measurement. No full-model measurement was run in the sandbox. Existing guard values and the preparation-only experiment profile are unchanged; this command cannot authorize training or calibrate a training threshold.
+
 **Task 24 assessment:** the [memory admission investigation](smollm2_memory_admission.md) traces the 32 GiB requirement to the larger Llama SGD experiment and adds a separate, fail-closed offline policy/evidence assessor. Its approved threshold remains unset; the existing physical command and every active guard below remain binding. SmolLM2 hardware fit is unresolved, and no real training is approved.
 
 **No guard is changed or bypassed.** The optional physical check directly calls the existing guarded SGD telemetry path: at least 48 GiB total host capacity, **32 GiB free+speculative before load**, **6 GiB continuing reserve**, at least **20% macOS free indicator**, explicit MPS, valid allocator readings and no CPU fallback. AdamW's separate 42 GiB threshold is unchanged. Missing telemetry is a stop. Inactive/purgeable/compressed memory must not be added to the conservative available-memory lower bound.

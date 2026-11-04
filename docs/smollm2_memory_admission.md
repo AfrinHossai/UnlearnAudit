@@ -2,6 +2,8 @@
 
 **Decision: the 32 GiB check is inherited from Llama; actual SmolLM2 fit remains unresolved. Real training remains NO-GO.** No guard is lowered, bypassed or automatically calibrated. No model weights were downloaded or loaded, no full model was instantiated, and no backward pass, optimizer update or paid resource was used in this task.
 
+**Task 25 follow-through:** the [separate physical read-only preflight](smollm2_readonly_preflight.md) now prepares an owner-run pinned-checkpoint load/forward measurement. Its implementation retains current admission numbers and produces a distinct read-only report; it neither changes this assessment policy nor supplies the missing training-memory evidence. It was not physically executed during preparation.
+
 ## Failure provenance and limits of the available evidence
 
 The Task 23 Terminal transcript is not present in the repository or supplied task context. Its exact readings cannot be audited here; do not substitute Task 20's historical 16.31 GiB available reading for Task 23. The source reconstructs the reported memory-readiness failure as:
