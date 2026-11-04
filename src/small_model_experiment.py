@@ -396,14 +396,21 @@ def write_new_manifest(path: Path, value: Mapping[str, Any]) -> None:
 
 
 def check_physical_mps_readiness() -> dict[str, Any]:
-    """Optional no-model Terminal check, reusing the unchanged SGD guard."""
+    """Optional no-model check; the inherited Llama SGD guard remains binding."""
     from types import SimpleNamespace
     import torch
     from src.graddiff_real_train import guarded_memory_snapshot, resolve_training_device
 
     device = resolve_training_device("mps", torch_module=torch)
-    snapshot = guarded_memory_snapshot(torch, device, SimpleNamespace(optimizer="sgd"), before_load=True)
+    try:
+        snapshot = guarded_memory_snapshot(torch, device, SimpleNamespace(optimizer="sgd"), before_load=True)
+    except RuntimeError as exc:
+        raise RuntimeError(
+            f"{exc}; inherited Llama SGD admission policy remains binding; "
+            "SmolLM2 fit is unmeasured. See python -m src.small_model_memory for an offline assessment"
+        ) from exc
     return {"status": "existing_SGD_admission_guard_passed_not_training_clearance",
+            "guard_origin": "Llama SGD policy; no calibrated SmolLM2 threshold",
             "actual_telemetry_device": str(device), "model_loaded": False, "memory": snapshot}
 
 

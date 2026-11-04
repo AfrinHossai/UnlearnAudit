@@ -1,0 +1,21 @@
+{
+  "schema_version": "1.0",
+  "guard_id": "smollm2_135m_fp32_sgd_uncalibrated_v1",
+  "status": "assessment_only_not_runtime_admission",
+  "experiment_profile_sha256": "260db810b3b1fbd4da0870725bcb7cac9a2ae4a472dbdb50c089007d35b711eb",
+  "active_runtime_guard": "unchanged_graddiff_real_train_sgd",
+  "approved_before_load_available_bytes": null,
+  "approved_measurement_sha256": null,
+  "training_authorized": false,
+  "minimum_total_host_gib": 48,
+  "continuing_available_lower_bound_gib": 6,
+  "minimum_system_memory_free_percentage": 20,
+  "minimum_uncertainty_gib": 4,
+  "uncertainty_fraction": 0.25,
+  "minimum_trials": 3,
+  "required_run_kinds": ["cold", "warm"],
+  "required_stages": [
+    "baseline", "loaded", "forward_actual", "forward_512",
+    "backward_512", "clipping", "serialization", "teardown"
+  ]
+}

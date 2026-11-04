@@ -77,6 +77,8 @@ The twelve generic probes are deliberately authored, separately licensed and pub
 
 ## Memory policy and establishing a future model-specific threshold
 
+**Task 24 assessment:** the [memory admission investigation](smollm2_memory_admission.md) traces the 32 GiB requirement to the larger Llama SGD experiment and adds a separate, fail-closed offline policy/evidence assessor. Its approved threshold remains unset; the existing physical command and every active guard below remain binding. SmolLM2 hardware fit is unresolved, and no real training is approved.
+
 **No guard is changed or bypassed.** The optional physical check directly calls the existing guarded SGD telemetry path: at least 48 GiB total host capacity, **32 GiB free+speculative before load**, **6 GiB continuing reserve**, at least **20% macOS free indicator**, explicit MPS, valid allocator readings and no CPU fallback. AdamW's separate 42 GiB threshold is unchanged. Missing telemetry is a stop. Inactive/purgeable/compressed memory must not be added to the conservative available-memory lower bound.
 
 FP32 estimates: weights **0.501 GiB**, gradients **0.501 GiB**, SGD state **0**, persistent floor **1.002 GiB**. Assuming a **2–4 GiB unmeasured** activation/workspace allowance gives **3–5 GiB** working peak and **19–21 GiB** host envelope after the prior 12 GiB OS/other-process reserve and 4 GiB uncertainty allowance. Loader copies, MPS allocator caching, recomputation and serialization remain unmeasured. These figures cannot authorize admission, predict speed or establish a safe smaller threshold.
