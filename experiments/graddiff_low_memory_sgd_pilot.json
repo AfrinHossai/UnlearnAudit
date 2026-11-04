@@ -1,8 +1,8 @@
 {
   "schema_version": "1.0",
-  "status": "assessment_only_not_implemented_not_executed",
+  "status": "guarded_sgd_implemented_synthetic_validated_real_model_not_run",
   "weight_updates_enabled": false,
-  "purpose": "Separate local full-parameter SGD GradDiff feasibility pilot; not an OpenUnlearning benchmark reproduction or executable training configuration.",
+  "purpose": "Separate local full-parameter SGD GradDiff pilot specification; runner support is implemented but this JSON does not enable execution or establish benchmark equivalence.",
   "assessment_document": "docs/low_memory_unlearning_options.md",
   "canonical_profile_unchanged": "experiments/graddiff_tofu_forget01_retain99.json",
   "model": {
@@ -59,25 +59,28 @@
     "fp32_gradient_bytes": 4943257600,
     "per_parameter_optimizer_state_bytes": 0,
     "persistent_state_floor_bytes": 9886515200,
-    "activation_workspace_allowance_gib": [8, 12],
+    "activation_workspace_allowance_gib": [
+      8,
+      12
+    ],
     "os_other_process_reserve_gib": 12,
     "uncertainty_margin_gib": 4,
-    "working_peak_plan_gib_rounded": [17.21, 21.21],
-    "host_envelope_gib_rounded": [33.21, 37.21],
+    "working_peak_plan_gib_rounded": [
+      17.21,
+      21.21
+    ],
+    "host_envelope_gib_rounded": [
+      33.21,
+      37.21
+    ],
     "not_a_measured_or_guaranteed_peak": true
   },
-  "proposed_safety_gates_not_yet_implemented": {
-    "before_load_available_lower_bound_gib": 32,
-    "continuing_available_lower_bound_gib": 6,
-    "minimum_system_memory_free_percentage": 20,
-    "require_readonly_physical_preflight": true,
-    "require_separately_authorized_no_update_backward_rehearsal": true,
-    "require_explicit_weight_update_authorization": true,
-    "outputs_must_be_new_git_ignored_local_paths": true,
-    "cloud_fallback_authorized": false
-  },
   "evaluation": {
-    "states": ["untouched_fp32_baseline", "graddiff_sgd_40_step", "matched_retain_only_sgd_40_step"],
+    "states": [
+      "untouched_fp32_baseline",
+      "graddiff_sgd_40_step",
+      "matched_retain_only_sgd_40_step"
+    ],
     "primary_checkpoint": "fixed_epoch_1_not_selected_on_scores",
     "forget_direct_cases": 40,
     "forget_official_paraphrase_cases": 40,
@@ -91,7 +94,42 @@
     "holdout_policy": "Seal holdout01 until final checkpoint is fixed; no tuning or stopping on test scores.",
     "official_forget_quality_requires_matching_reference_logs": true,
     "reference_revision": "64a2028a51b386a06898464142df1d89749fdab3",
-    "broader_claim_requires_additional_preregistered_seeds": [2027, 2028],
+    "broader_claim_requires_additional_preregistered_seeds": [
+      2027,
+      2028
+    ],
     "negative_or_inconclusive_results_must_be_reported": true
+  },
+  "implemented_runtime_safety_gates": {
+    "before_load_available_lower_bound_gib": 32,
+    "continuing_available_lower_bound_gib": 6,
+    "minimum_system_memory_free_percentage": 20,
+    "require_explicit_weight_update_authorization": true,
+    "outputs_must_be_new_git_ignored_local_paths": true,
+    "cloud_fallback_authorized": false,
+    "minimum_total_host_gib": 48
+  },
+  "execution_prerequisites_not_automatically_certified": [
+    "Review a successful physical read-only FP32 preflight.",
+    "Authorize and review physical backward-only memory rehearsal with relevant sequence lengths.",
+    "Freeze baseline, retain-only control, evaluator/log provenance and pilot schedule before updates."
+  ],
+  "implementation": {
+    "runner": "src/graddiff_real_train.py",
+    "sgd_option": "--optimizer sgd",
+    "backward_rehearsal_option": "--backward-only",
+    "default_max_optimizer_steps": 1,
+    "profile_json_loaded_by_runner": false,
+    "details": "docs/graddiff_low_memory_runner.md"
+  },
+  "synthetic_validation": {
+    "actual_device": "cpu",
+    "fixture_parameter_count": 5200,
+    "observed_gradient_tensor_bytes": 20800,
+    "optimizer_created_in_rehearsal": false,
+    "pretrained_weights_loaded": false,
+    "full_model_fit_measured": false,
+    "suite_tests_run": 88,
+    "suite_mps_only_skips": 1
   }
 }

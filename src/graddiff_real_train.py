@@ -2,13 +2,15 @@
 
 The default command validates pinned local files and answer-only tokenization;
 it does not load model weights or construct an optimizer. Weight updates need
-an explicit ``--apply-updates``, device selection, and revision confirmation.
+an explicit ``--apply-updates``, device selection, revision and memory checks.
+``--backward-only`` is a separate opt-in that never creates an optimizer.
 This small Apple Silicon port is not an OpenUnlearning benchmark reproduction.
 """
 
 from __future__ import annotations
 
 import argparse
+import inspect
 import json
 import math
 import os
@@ -16,11 +18,11 @@ import platform
 import random
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from src.evaluate_tofu_baseline import (
-    MODEL_CACHE_DIR,
     MODEL_ID,
     MODEL_REVISION,
 )
@@ -41,6 +43,7 @@ from src.graddiff_model_smoke import (
     memory_snapshot,
 )
 from src.graddiff_train import assert_single_process
+from src.graddiff_memory import host_memory_snapshot
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 OUTPUT_ROOT = PROJECT_ROOT / "outputs"
@@ -54,8 +57,8 @@ FIXED_BATCH_SIZE = 1
 MAX_STEPS_PER_INVOCATION = 40
 EXPECTED_PARAMETER_COUNT = 1_235_814_400
 FP32_ADAMW_STATE_FLOOR_BYTES = 19_773_030_400
-PLANNING_ENVELOPE_GIB = {"minimum": 27.1, "maximum": 31.1}
 FINITE_CHECK_CHUNK_ELEMENTS = 16_777_216
+GIB = 1024**3
 
 
 class GradDiffOutOfMemoryError(RuntimeError):
@@ -67,13 +70,20 @@ class GradDiffOutOfMemoryError(RuntimeError):
         self.snapshot = dict(snapshot)
         super().__init__(
             f"Out of memory during {phase} on {device}. No device fallback was "
-            "attempted and no checkpoint was saved. If the failure occurred in "
+            "attempted. No checkpoint is certified by a failed run; a partial local "
+            "output may exist. If the failure occurred in "
             "optimizer.step, discard this process because a partial in-memory update "
             f"cannot be ruled out. Memory snapshot: {json.dumps(self.snapshot, sort_keys=True)}"
         )
 
 
 def _validate_numeric_options(args: argparse.Namespace) -> None:
+    if args.optimizer not in {"adamw", "sgd"}:
+        raise ValueError("unsupported optimizer")
+    if args.momentum != 0 or args.precision != "float32" or args.checkpointing != "non-reentrant":
+        raise ValueError("only zero momentum, float32 and non-reentrant checkpointing are supported")
+    if args.learning_rate is None:
+        args.learning_rate = 1e-4 if args.optimizer == "sgd" else DEFAULT_LEARNING_RATE
     if isinstance(args.max_steps, bool) or not 1 <= args.max_steps <= MAX_STEPS_PER_INVOCATION:
         raise ValueError(
             f"--max-steps must be between 1 and {MAX_STEPS_PER_INVOCATION}; "
@@ -112,7 +122,91 @@ def resolve_training_device(requested: str, *, torch_module: Any | None = None) 
             "MPS was requested but is unavailable in this process; no CPU fallback "
             "was attempted. Rerun with --device cpu only if CPU execution is intended."
         )
+    if os.environ.get("PYTORCH_ENABLE_MPS_FALLBACK") == "1":
+        raise RuntimeError("disable PYTORCH_ENABLE_MPS_FALLBACK; implicit CPU operations are forbidden")
     return torch_module.device("mps")
+
+
+def configure_training_model(model: Any) -> dict[str, Any]:
+    """Require full FP32 training and explicit modern checkpoint semantics."""
+    import torch
+
+    parameters = list(model.parameters())
+    if not parameters or any(not p.requires_grad or p.dtype != torch.float32 for p in parameters):
+        raise ValueError("full-parameter training requires every parameter trainable in float32")
+    enable = getattr(model, "gradient_checkpointing_enable", None)
+    if not getattr(model, "supports_gradient_checkpointing", False) or not callable(enable):
+        raise ValueError("model does not support required gradient checkpointing")
+    if "gradient_checkpointing_kwargs" not in inspect.signature(enable).parameters:
+        raise ValueError("model checkpointing API cannot accept explicit activation settings")
+    if not hasattr(getattr(model, "config", None), "use_cache"):
+        raise ValueError("model config must expose use_cache")
+    model.config.use_cache = False
+    try:
+        enable(gradient_checkpointing_kwargs={"use_reentrant": False, "preserve_rng_state": True})
+    except (TypeError, NotImplementedError) as exc:
+        raise ValueError("model rejected the required checkpoint activation settings") from exc
+    if not getattr(model, "is_gradient_checkpointing", False):
+        raise RuntimeError("model did not activate gradient checkpointing")
+    # Reject legacy Transformers hooks that accept kwargs but ignore them.
+    checkpoint_functions = [getattr(m, "_gradient_checkpointing_func", None) for m in model.modules()]
+    checkpoint_functions = [fn for fn in checkpoint_functions if fn is not None]
+    if not checkpoint_functions or any(
+        getattr(fn, "keywords", {}).get("use_reentrant") is not False or
+        getattr(fn, "keywords", {}).get("preserve_rng_state") is not True
+        for fn in checkpoint_functions
+    ):
+        raise RuntimeError("checkpoint activation settings were not propagated to model modules")
+    model.train()
+    return {"enabled": True, "use_reentrant": False, "preserve_rng_state": True, "use_cache": False}
+
+
+def build_optimizer(model: Any, args: argparse.Namespace) -> Any:
+    import torch
+
+    _validate_numeric_options(args)
+    if any(not p.requires_grad or p.dtype != torch.float32 for p in model.parameters()):
+        raise ValueError("optimizer requires all original parameters trainable in float32")
+    if args.optimizer == "sgd":
+        return torch.optim.SGD(model.parameters(), lr=args.learning_rate, momentum=0.0,
+                               weight_decay=0.0, foreach=False, fused=False, maximize=False)
+    return torch.optim.AdamW(model.parameters(), lr=args.learning_rate, weight_decay=0.0,
+                             foreach=False, fused=False)
+
+
+def validate_training_runtime(model: Any, device: Any) -> None:
+    import torch
+
+    if not model.training or model.config.use_cache or not model.is_gradient_checkpointing:
+        raise RuntimeError("model must train with active checkpointing and cache disabled")
+    if any(p.device.type != device.type or p.dtype != torch.float32 or not p.requires_grad
+           for p in model.parameters()):
+        raise RuntimeError("all trainable FP32 parameters must reside on the selected device")
+
+
+def check_training_memory(snapshot: Mapping[str, Any], *, optimizer: str, before_load: bool) -> None:
+    if optimizer not in {"sgd", "adamw"}:
+        raise ValueError("unsupported optimizer memory profile")
+    minimum = ((32 if optimizer == "sgd" else 42) if before_load else 6) * GIB
+    available = snapshot.get("available_physical_memory_lower_bound_bytes")
+    total = snapshot.get("total_physical_memory_bytes")
+    percentage = snapshot.get("system_memory_free_percentage")
+    if any(not isinstance(v, int) or isinstance(v, bool) for v in (available, total, percentage)):
+        raise RuntimeError("STOP: required training memory telemetry unavailable")
+    if total < 48 * GIB or not 0 <= available <= total or not 0 <= percentage <= 100:
+        raise RuntimeError("STOP: invalid memory telemetry or less than 48 GiB total capacity")
+    if available < minimum or percentage < 20:
+        raise RuntimeError(f"STOP: training requires {minimum // GIB} GiB available and 20% system memory free")
+
+
+def guarded_memory_snapshot(torch_module: Any, device: Any, args: argparse.Namespace,
+                            *, before_load: bool = False) -> dict[str, Any]:
+    snapshot = {**memory_snapshot(torch_module, device), **host_memory_snapshot()}
+    if device.type == "mps" and any(not isinstance(snapshot.get(key), int) for key in
+                                    ("mps_tensor_allocated_bytes", "mps_driver_allocated_bytes")):
+        raise RuntimeError("STOP: required MPS allocation telemetry unavailable")
+    check_training_memory(snapshot, optimizer=args.optimizer, before_load=before_load)
+    return snapshot
 
 
 def _seed_runtime(torch_module: Any, device: Any, seed: int) -> None:
@@ -289,6 +383,10 @@ def run_local_validation(args: argparse.Namespace) -> dict[str, Any]:
             "retain99": _batch_metadata(retain_batch),
         },
         "hyperparameters": {
+            "optimizer": args.optimizer,
+            "momentum": 0.0,
+            "checkpointing": args.checkpointing,
+            "precision": args.precision,
             "seed": args.seed,
             "max_optimizer_steps": args.max_steps,
             "batch_size": FIXED_BATCH_SIZE,
@@ -341,6 +439,7 @@ def checked_optimizer_step(
     *,
     max_grad_norm: float,
     torch_module: Any | None = None,
+    before_update: Any | None = None,
 ) -> dict[str, float | bool]:
     """Reject bad gradients, clip in place, then perform one optimizer update."""
     if torch_module is None:
@@ -359,6 +458,8 @@ def checked_optimizer_step(
     if not math.isfinite(norm_value):
         raise FloatingPointError("gradient norm is non-finite")
     _assert_finite_gradients(model, torch_module)
+    if before_update is not None:
+        before_update()
     optimizer.step()
     _assert_finite_parameters(model, torch_module)
     return {
@@ -426,6 +527,16 @@ def _write_report(path: str | Path, report: Mapping[str, Any]) -> None:
         stream.write("\n")
 
 
+def _check_output_writable(*paths: Path | None) -> None:
+    for path in paths:
+        if path is not None:
+            target = _validate_output_path(path, kind="artifact")
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with tempfile.TemporaryFile(dir=target.parent) as probe:
+                probe.write(b"output permission probe")
+                probe.flush()
+
+
 def _loss_value(torch_module: Any, model: Any, batch: Mapping[str, Any], split: str) -> tuple[Any, float, float]:
     outputs = model(
         input_ids=batch["input_ids"],
@@ -444,6 +555,33 @@ def _loss_value(torch_module: Any, model: Any, batch: Mapping[str, Any], split: 
     return local_loss, float(local_loss.detach().item()), difference
 
 
+def backward_pair(model: Any, forget_batch: Mapping[str, Any], retain_batch: Mapping[str, Any],
+                  args: argparse.Namespace, *, observe: Any | None = None) -> dict[str, float]:
+    """Accumulate the validated two mean-loss contributions; never step an optimizer."""
+    import torch
+
+    model.zero_grad(set_to_none=True)
+    values = {}
+    for split, batch, coefficient in (("forget", forget_batch, -args.gamma),
+                                       ("retain", retain_batch, args.alpha)):
+        nll, value, parity = _loss_value(torch, model, batch, split)
+        weighted = coefficient * nll
+        if not bool(torch.isfinite(weighted).item()):
+            raise FloatingPointError("weighted GradDiff loss contribution is non-finite")
+        weighted.backward()
+        _assert_finite_gradients(model, torch)
+        values[f"{split}_nll"] = value
+        values[f"{split}_objective_term"] = coefficient * value
+        values[f"{split}_model_loss_abs_difference"] = parity
+        del nll, weighted
+        if observe is not None:
+            observe(f"after_{split}_backward")
+    values["objective"] = values["forget_objective_term"] + values["retain_objective_term"]
+    if not math.isfinite(values["objective"]):
+        raise FloatingPointError("GradDiff objective is non-finite")
+    return values
+
+
 def _train_one_step(
     *,
     model: Any,
@@ -456,6 +594,8 @@ def _train_one_step(
     device: Any,
     args: argparse.Namespace,
     torch_module: Any,
+    before_update: Any | None = None,
+    observe: Any | None = None,
 ) -> dict[str, Any]:
     forget_batch = prepare_tofu_batch(
         [forget_record], tokenizer, device=device,
@@ -465,29 +605,13 @@ def _train_one_step(
         [retain_record], tokenizer, device=device,
         max_sequence_length=args.max_sequence_length,
     )
-    optimizer.zero_grad(set_to_none=True)
-    forget_nll, forget_value, forget_parity = _loss_value(
-        torch_module, model, forget_batch, "forget01"
-    )
-    (-args.gamma * forget_nll).backward()
-    _assert_finite_gradients(model, torch_module)
-    del forget_nll
-
-    retain_nll, retain_value, retain_parity = _loss_value(
-        torch_module, model, retain_batch, "retain99"
-    )
-    (args.alpha * retain_nll).backward()
-    _assert_finite_gradients(model, torch_module)
-    objective_value = float((-args.gamma * forget_value + args.alpha * retain_value))
-    if not math.isfinite(objective_value):
-        raise FloatingPointError("GradDiff objective is non-finite")
-    del retain_nll
-
+    losses = backward_pair(model, forget_batch, retain_batch, args, observe=observe)
     gradient_report = checked_optimizer_step(
         model,
         optimizer,
         max_grad_norm=args.max_grad_norm,
         torch_module=torch_module,
+        before_update=before_update,
     )
     optimizer.zero_grad(set_to_none=True)
     return {
@@ -496,15 +620,7 @@ def _train_one_step(
             _example_log("forget01", forget_index, forget_batch),
             _example_log("retain99", retain_index, retain_batch),
         ],
-        "losses": {
-            "forget_nll": forget_value,
-            "retain_nll": retain_value,
-            "forget_objective_term": -args.gamma * forget_value,
-            "retain_objective_term": args.alpha * retain_value,
-            "objective": objective_value,
-            "forget_model_loss_abs_difference": forget_parity,
-            "retain_model_loss_abs_difference": retain_parity,
-        },
+        "losses": losses,
         "gradient": {
             **gradient_report,
             "max_grad_norm": args.max_grad_norm,
@@ -527,8 +643,22 @@ def _save_checkpoint_safely(model: Any, tokenizer: Any, path: str | Path) -> str
 
 
 def _update_mode_requirements(args: argparse.Namespace) -> tuple[Path, Path | None]:
-    if not getattr(args, "apply_updates", False) or getattr(args, "dry_run", False):
+    if (not getattr(args, "apply_updates", False) or getattr(args, "dry_run", False)
+            or getattr(args, "backward_only", False)):
         raise ValueError("weight updates require --apply-updates and cannot use --dry-run")
+    return _real_output_requirements(args)
+
+
+def _backward_mode_requirements(args: argparse.Namespace) -> tuple[Path, None]:
+    if not args.backward_only or args.apply_updates or args.dry_run:
+        raise ValueError("backward-only requires explicit --backward-only without updates or dry-run")
+    if args.max_steps != 1 or args.save_checkpoint is not None:
+        raise ValueError("backward-only permits one paired backward and no checkpoint save")
+    report, _checkpoint = _real_output_requirements(args)
+    return report, None
+
+
+def _real_output_requirements(args: argparse.Namespace) -> tuple[Path, Path | None]:
     _validate_numeric_options(args)
     if args.device is None:
         raise ValueError("weight updates require an explicit --device mps or --device cpu")
@@ -549,7 +679,19 @@ def _update_mode_requirements(args: argparse.Namespace) -> tuple[Path, Path | No
 
 def run_real_updates(args: argparse.Namespace) -> dict[str, Any]:
     """Load the pinned local model and run at most one forget/retain pair per step."""
-    report_path, checkpoint_path = _update_mode_requirements(args)
+    _update_mode_requirements(args)
+    return _run_real_model(args, backward_only=False)
+
+
+def run_real_backward_only(args: argparse.Namespace) -> dict[str, Any]:
+    """Explicit physical-device rehearsal, never constructing an optimizer."""
+    _backward_mode_requirements(args)
+    return _run_real_model(args, backward_only=True)
+
+
+def _run_real_model(args: argparse.Namespace, *, backward_only: bool) -> dict[str, Any]:
+    requirements = _backward_mode_requirements if backward_only else _update_mode_requirements
+    report_path, checkpoint_path = requirements(args)
     assert_single_process()
     import torch
     from transformers import AutoModelForCausalLM
@@ -559,7 +701,22 @@ def run_real_updates(args: argparse.Namespace) -> dict[str, Any]:
     phase = "local data and tokenizer validation"
     model = None
     optimizer = None
+    observations = []
+
+    def observe(stage: str, *, before_load: bool = False) -> dict[str, Any]:
+        snapshot = guarded_memory_snapshot(torch, device, args, before_load=before_load)
+        observations.append({"stage": stage, **snapshot})
+        return snapshot
+
+    def before_update() -> None:
+        paths = requirements(args)  # Recheck new/ignored paths immediately before mutation.
+        _check_output_writable(*paths)
+        validate_training_runtime(model, device)
+        observe("immediately_before_optimizer_step")
+
     try:
+        _check_output_writable(report_path, checkpoint_path)
+        observe("before_local_inputs", before_load=True)
         (
             torch,
             transformers,
@@ -573,7 +730,7 @@ def run_real_updates(args: argparse.Namespace) -> dict[str, Any]:
         ) = _load_local_inputs(seed=args.seed, max_sequence_length=args.max_sequence_length)
         data = loaded["data"]
         memory = {
-            "before_model_load": memory_snapshot(torch, device),
+            "before_model_load": observe("before_model_load", before_load=True),
         }
         phase = "pinned FP32 model load"
         model = AutoModelForCausalLM.from_pretrained(
@@ -592,59 +749,76 @@ def run_real_updates(args: argparse.Namespace) -> dict[str, Any]:
             max_sequence_length=args.max_sequence_length,
             model=model,
         )
-        model.config.use_cache = False
-        model.gradient_checkpointing_enable()
-        model.train()
-        memory["after_model_load_and_gradient_checkpointing"] = memory_snapshot(torch, device)
-
-        optimizer = torch.optim.AdamW(
-            model.parameters(),
-            lr=args.learning_rate,
-            weight_decay=0.0,
-            foreach=False,
-            fused=False,
-        )
+        checkpointing = configure_training_model(model)
+        validate_training_runtime(model, device)
+        if sum(p.numel() for p in model.parameters()) != EXPECTED_PARAMETER_COUNT:
+            raise ValueError("loaded parameter count differs from pinned full-model architecture")
+        memory["after_model_load_and_gradient_checkpointing"] = observe("after_model_load")
+        versions = tuple(p._version for p in model.parameters())
+        if not backward_only:
+            optimizer = build_optimizer(model, args)
         records: list[dict[str, Any]] = []
         for step_index, (_step, forget_index, retain_index) in enumerate(
             data["choices"][: args.max_steps]
         ):
-            before_step = memory_snapshot(torch, device)
+            before_step = observe("before_paired_backward")
             phase = (
                 f"forward/backward, gradient clipping, or optimizer.step for step "
                 f"{step_index + 1}"
             )
-            record = _train_one_step(
-                model=model,
-                optimizer=optimizer,
-                tokenizer=tokenizer,
-                forget_record=forget_records[forget_index],
-                retain_record=retain_records[retain_index],
-                forget_index=forget_index,
-                retain_index=retain_index,
-                device=device,
-                args=args,
-                torch_module=torch,
-            )
+            if backward_only:
+                forget_batch = prepare_tofu_batch([forget_records[forget_index]], tokenizer,
+                                                device=device, max_sequence_length=args.max_sequence_length)
+                retain_batch = prepare_tofu_batch([retain_records[retain_index]], tokenizer,
+                                                device=device, max_sequence_length=args.max_sequence_length)
+                losses = backward_pair(model, forget_batch, retain_batch, args, observe=observe)
+                record = {"losses": losses, "examples": [
+                    _example_log("forget01", forget_index, forget_batch),
+                    _example_log("retain99", retain_index, retain_batch)],
+                    "observed_gradient_tensor_bytes": sum(
+                        p.grad.numel() * p.grad.element_size() for p in model.parameters() if p.grad is not None)}
+                if versions != tuple(p._version for p in model.parameters()):
+                    raise RuntimeError("backward-only rehearsal changed parameter versions")
+                model.zero_grad(set_to_none=True)
+            else:
+                record = _train_one_step(
+                    model=model,
+                    optimizer=optimizer,
+                    tokenizer=tokenizer,
+                    forget_record=forget_records[forget_index],
+                    retain_record=retain_records[retain_index],
+                    forget_index=forget_index,
+                    retain_index=retain_index,
+                    device=device,
+                    args=args,
+                    torch_module=torch,
+                    before_update=before_update,
+                    observe=observe,
+                )
+                if args.optimizer == "sgd" and optimizer.state:
+                    raise RuntimeError("zero-momentum SGD unexpectedly allocated optimizer state")
             record["memory_before_step"] = before_step
-            record["memory_after_step"] = memory_snapshot(torch, device)
+            record["memory_after_step"] = observe("after_pair")
             records.append(record)
 
         saved_to = None
         if checkpoint_path is not None:
+            observe("before_checkpoint_save")
             phase = "optional local checkpoint save"
             saved_to = _save_checkpoint_safely(model, tokenizer, checkpoint_path)
-        memory["after_training_and_optional_save"] = memory_snapshot(torch, device)
+        memory["after_training_and_optional_save"] = observe("completed")
+        state_floor = EXPECTED_PARAMETER_COUNT * (8 if args.optimizer == "sgd" else 16)
         report = {
             "schema_version": "1.0",
-            "mode": "real_model_graddiff_training",
-            "status": "completed_local_update",
+            "mode": "real_model_backward_only" if backward_only else "real_model_graddiff_training",
+            "status": "completed_backward_without_update" if backward_only else "completed_local_update",
             "actual_device": str(device),
             "model": {
                 **checkpoint,
                 "weights_loaded": True,
                 "precision": "float32",
                 "attention_implementation": "sdpa",
-                "gradient_checkpointing": True,
+                "gradient_checkpointing": checkpointing,
             },
             "tokenizer": tokenizer_compatibility,
             "loaded_model_compatibility": loaded_model_compatibility,
@@ -653,7 +827,7 @@ def run_real_updates(args: argparse.Namespace) -> dict[str, Any]:
             "hyperparameters": {
                 "seed": args.seed,
                 "max_optimizer_steps": args.max_steps,
-                "optimizer_steps_completed": len(records),
+                "optimizer_steps_completed": 0 if backward_only else len(records),
                 "batch_size": FIXED_BATCH_SIZE,
                 "max_sequence_length": args.max_sequence_length,
                 "gamma": args.gamma,
@@ -661,26 +835,33 @@ def run_real_updates(args: argparse.Namespace) -> dict[str, Any]:
                 "learning_rate": args.learning_rate,
                 "weight_decay": 0.0,
                 "max_grad_norm": args.max_grad_norm,
-                "optimizer": "torch.optim.AdamW(foreach=False, fused=False)",
+                "optimizer": args.optimizer,
+                "momentum": 0.0,
+                "optimizer_state_tensor_elements": 0 if optimizer is None else sum(
+                    v.numel() for state in optimizer.state.values() for v in state.values()
+                    if isinstance(v, torch.Tensor)),
                 "precision": "float32",
                 "gradient_checkpointing": True,
             },
             "steps": records,
             "memory_snapshots": memory,
+            "guarded_phase_snapshots": observations,
             "memory_estimate": {
                 "estimated_trainable_parameters": EXPECTED_PARAMETER_COUNT,
-                "fp32_parameter_gradient_two_moment_adamw_floor_bytes": FP32_ADAMW_STATE_FLOOR_BYTES,
-                "fp32_state_floor_gib": round(FP32_ADAMW_STATE_FLOOR_BYTES / (1024**3), 2),
-                "planning_envelope_gib": PLANNING_ENVELOPE_GIB,
+                "selected_optimizer_training_state_floor_bytes": state_floor,
+                "fp32_state_floor_gib": round(state_floor / GIB, 2),
+                "planning_envelope_gib": [round(state_floor / GIB + a, 2) for a in (24, 28)],
                 "is_measured_peak": False,
-                "excludes_activations_transients_and_other_processes": True,
+                "state_floor_excludes_activations_transients_and_other_processes": True,
             },
             "checkpoint": {
                 "saved": saved_to is not None,
                 "local_ignored_output": saved_to,
                 "original_checkpoint_overwritten": False,
             },
-            "weight_updates_enabled": True,
+            "weight_updates_enabled": not backward_only,
+            "optimizer_created": optimizer is not None,
+            "snapshots_are_not_continuous_peaks": True,
             "raw_question_or_answer_text_logged": False,
             "benchmark_reproduction_claim": False,
         }
@@ -698,6 +879,9 @@ def run_real_updates(args: argparse.Namespace) -> dict[str, Any]:
                 snapshot = {"snapshot_unavailable": True}
             raise GradDiffOutOfMemoryError(phase, str(device), snapshot) from exc
         raise
+    finally:
+        if model is not None:
+            model.zero_grad(set_to_none=True)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -712,11 +896,19 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="explicitly load the pinned real model and enable optimizer updates",
     )
+    parser.add_argument("--backward-only", action="store_true",
+                        help="explicit real-model gradient rehearsal; no optimizer or checkpoint save")
+    parser.add_argument("--optimizer", choices=("adamw", "sgd"), default="adamw")
+    parser.add_argument("--momentum", type=float, default=0.0,
+                        help="only 0 is supported; SGD never creates momentum buffers")
+    parser.add_argument("--precision", choices=("float32",), default="float32")
+    parser.add_argument("--checkpointing", choices=("non-reentrant",), default="non-reentrant")
     parser.add_argument("--device", choices=("mps", "cpu"), default=None)
     parser.add_argument("--confirm-model-revision", default=None)
     parser.add_argument("--max-steps", "--max-optimizer-steps", dest="max_steps", type=int, default=1)
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
-    parser.add_argument("--learning-rate", type=float, default=DEFAULT_LEARNING_RATE)
+    parser.add_argument("--learning-rate", type=float, default=None,
+                        help="default 1e-4 for SGD, 1e-5 for AdamW")
     parser.add_argument("--gamma", type=float, default=DEFAULT_GAMMA)
     parser.add_argument("--alpha", type=float, default=DEFAULT_ALPHA)
     parser.add_argument("--max-grad-norm", type=float, default=DEFAULT_MAX_GRAD_NORM)
@@ -732,9 +924,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     try:
+        _validate_numeric_options(args)
         if args.apply_updates and args.dry_run:
             raise ValueError("--dry-run and --apply-updates cannot be used together")
-        if args.apply_updates:
+        if args.backward_only:
+            report_path, _checkpoint_path = _backward_mode_requirements(args)
+            report = run_real_backward_only(args)
+            _write_report(report_path, report)
+        elif args.apply_updates:
             report_path, _checkpoint_path = _update_mode_requirements(args)
             report = run_real_updates(args)
             _write_report(report_path, report)
@@ -760,7 +957,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 2
-    except (FileNotFoundError, FileExistsError, FloatingPointError, RuntimeError, ValueError) as exc:
+    except (OSError, FloatingPointError, RuntimeError, ValueError, subprocess.SubprocessError) as exc:
         print(
             json.dumps(
                 {"status": "failed_safe", "error_type": type(exc).__name__, "error": str(exc)},

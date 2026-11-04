@@ -1,5 +1,7 @@
 # Read-only FP32 GradDiff preflight
 
+Task 19 adds [a distinct SGD backward-only rehearsal](graddiff_low_memory_runner.md), with a stricter 32 GiB pre-load guard and no optimizer. The forward-only command below retains its 20 GiB guard; passing it does not enable or certify backward execution. Both commands share the same host telemetry reader.
+
 Task 17 adds `src/graddiff_preflight.py`. The default prints a plan and never loads weights. Full-model load and two forwards require `--run-preflight`. There is no training flag, backward call, optimizer construction, optimizer step, or checkpoint-save path in this command. It freezes parameters, uses `eval()` and `torch.inference_mode()`, checks parameter version counters and absent gradients, rejects nonfinite losses/logits and model/local loss disagreement, and never falls back from MPS to CPU. All assets are local-only.
 
 ## Verified findings

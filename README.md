@@ -62,7 +62,7 @@ The initial five-question result from [`src/evaluate_tofu_baseline.py`](src/eval
 
 ## Local GradDiff Prototype
 
-**Selected next step (Task 18):** prepare a separate FP32 full-parameter GradDiff pilot using SGD without momentum, gradient checkpointing and the existing cached TOFU model. Its estimated persistent state is 9.21 GiB and host planning envelope is 33.21–37.21 GiB; these are unmeasured budgets. The [options assessment](docs/low_memory_unlearning_options.md) compares mixed precision, SGD, checkpointing, LoRA and smaller models, and records the decision and evaluation controls. The [proposed pilot specification](experiments/graddiff_low_memory_sgd_pilot.json) is documentation only: the runner still uses AdamW. Optimizer implementation checks, physical preflight, a separately authorized no-update backward memory rehearsal, and explicit authorization must precede any real update. The proposed training gate requires 32 GiB available by the conservative measure; the historical 17.4 GiB reading fails it. No new training, model download or cloud execution occurred in this assessment.
+**Task 19:** the runner now supports explicit full-parameter FP32 SGD (`--optimizer sgd`) with zero momentum, required non-reentrant checkpointing and a separate `--backward-only` mode. Defaults still validate without loading weights. The [implementation and exact prerequisites](docs/graddiff_low_memory_runner.md) record 88 tests (87 passed, one MPS-only skip) and the tiny CPU backward rehearsal; no pretrained model was loaded or updated. The SGD runtime guard requires 32 GiB available before load and 6 GiB thereafter, plus valid device and new ignored output paths. Full-model memory/utility remain unverified. Read the [options assessment](docs/low_memory_unlearning_options.md) and [pilot specification](experiments/graddiff_low_memory_sgd_pilot.json); the JSON itself never enables training.
 
 [`src/graddiff.py`](src/graddiff.py) implements the GradDiff scalar objective with mean causal next-token NLL computed separately for forget and retain batches. [`src/graddiff_train.py`](src/graddiff_train.py) provides an offline synthetic-only CLI. It selects MPS when available and CPU otherwise, records the selected device, rejects multi-process launch settings, and does not load a real model, checkpoint, or dataset.
 
@@ -72,7 +72,7 @@ Run the synthetic dry run with PyTorch installed:
 python -m src.graddiff_train --dry-run --device auto --steps 3
 ```
 
-The repository tests cover loss normalization, gradient signs, error handling, and fixture-based model integration. A deterministic transcription of the pinned Transformers causal-LM loss and OpenUnlearning GradDiff objective matches the local scalar loss and input-logit gradients. The cached tokenizer and pinned forget/retain examples have been checked without loading model weights. The new [guarded real-model runner](src/graddiff_real_train.py) defaults to local validation with no model-weight loading; an update requires `--apply-updates`, an explicit device, and confirmation of the immutable model revision. Its one-step Apple Silicon profile uses FP32, SDPA, Torch AdamW, batch size one, gradient checkpointing, finite-loss/gradient checks, and clipping. This is a local port, not a faithful OpenUnlearning reproduction. The separate [real-model read-only smoke](docs/graddiff_model_integration_smoke.md) has not been run. The runner is **not yet cleared for a real-model optimizer step** because full-model loss parity and peak memory on MPS remain unmeasured. No TOFU GradDiff update or real unlearning has been performed.
+The repository tests cover loss normalization, gradient signs, error handling, and fixture-based model integration. A deterministic transcription of the pinned Transformers causal-LM loss and OpenUnlearning GradDiff objective matches the local scalar loss and input-logit gradients. The cached tokenizer and pinned forget/retain examples have been checked without loading model weights. The new [guarded real-model runner](src/graddiff_real_train.py) defaults to local validation with no model-weight loading; an update requires `--apply-updates`, an explicit device, and confirmation of the immutable model revision. Its one-step Apple Silicon profile uses FP32, SDPA, explicit Torch SGD or default AdamW, batch size one, gradient checkpointing, finite-loss/gradient checks, and clipping. This is a local port, not a faithful OpenUnlearning reproduction. The separate [real-model read-only smoke](docs/graddiff_model_integration_smoke.md) has not been run. The runner is **not yet cleared for a real-model optimizer step** because full-model loss parity and peak memory on MPS remain unmeasured. No TOFU GradDiff update or real unlearning has been performed.
 
 ### Safe validation and future one-step command
 
@@ -96,19 +96,19 @@ env -u CONDA_PREFIX -u CONDA_DEFAULT_ENV -u PYTHONHOME -u PYTHONPATH \
   ./.venv-ml/bin/python -m src.graddiff_real_train --dry-run
 ```
 
-After the read-only full-model smoke and live memory check pass, the exact command for one explicitly enabled MPS update is:
+After successful read-only and backward-only physical rehearsals, evaluation-plan freeze, memory review and separate update authorization, the following command would enable one SGD update. It has not been executed:
 
 ```sh
 env -u CONDA_PREFIX -u CONDA_DEFAULT_ENV -u PYTHONHOME -u PYTHONPATH \
   HF_HUB_OFFLINE=1 \
   ./.venv-ml/bin/python -m src.graddiff_real_train \
-  --apply-updates --device mps \
+  --optimizer sgd --apply-updates --device mps \
   --confirm-model-revision 88e31200b97e4c0c04ae0d2f0b591f427046d192 \
-  --max-steps 1 --seed 2026 --learning-rate 1e-5 \
+  --max-steps 1 --seed 2026 --learning-rate 1e-4 \
   --gamma 1.0 --alpha 1.0 --max-grad-norm 1.0 \
   --max-sequence-length 512 \
-  --report-path outputs/graddiff-step1-mps-2026-11-03.json \
-  --save-checkpoint outputs/graddiff-step1-mps-2026-11-03
+  --report-path outputs/graddiff-sgd-step1-mps-first.json \
+  --save-checkpoint outputs/graddiff-sgd-step1-mps-first
 ```
 
 The runner is local-only and fails if pinned files are missing; it does not download data or model weights. CPU use must be selected by changing `--device mps` to `--device cpu`; there is no automatic device fallback. Model outputs and checkpoints can be written only under the Git-ignored `outputs/` directory, and existing paths or the original TOFU checkpoint are rejected. Reports store dataset checksums, split row indices, loss components, hyperparameters, memory snapshots, and the actual device, but no question/answer text, environment secrets, or model weights. The FP32 AdamW state floor is estimated at 18.42 GiB, with an earlier 27.1–31.1 GiB planning envelope. Task 17 uses the stricter 42.42 GiB estimate above for readiness; none is a measured training peak. The local runner omits upstream distributed sampling, gradient accumulation, scheduler, paged AdamW, BF16, and FlashAttention, so its output must not be reported as an official benchmark reproduction. See [docs/graddiff_experiment_plan.md](docs/graddiff_experiment_plan.md) for readiness limits and deviations.
