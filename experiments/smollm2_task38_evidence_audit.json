@@ -1,0 +1,143 @@
+{
+  "scope": "Task38 offline audit; no new model load, training, optimizer step, checkpoint write or download",
+  "task37_source": "outputs/smollm2_backward_task37.json",
+  "task37_file_sha256": "f71c8d1e673067676708c33be9cfdb30b7545f96ed691768b7b183652bde80b3",
+  "recorded_status": "backward_rehearsal_passed_not_training_clearance",
+  "training_clearance": false,
+  "model_id": "HuggingFaceTB/SmolLM2-135M",
+  "revision": "93efa2f097d58c2a74874c7e644dbc9b0cee75a2",
+  "checkpoint": {
+    "model_id": "HuggingFaceTB/SmolLM2-135M",
+    "revision": "93efa2f097d58c2a74874c7e644dbc9b0cee75a2",
+    "license": "Apache-2.0",
+    "weight_sha256": "80521b40281d6ce74e35c9282c22539e75aa0ac8578892b2a59955ef78d55da1",
+    "weight_bytes": 269060552,
+    "metadata_sha256": {
+      "config.json": "1d556eab73b69c7f11f64c557a2f9c6f440bd4c6b89bb2584a6b498c92603843",
+      "tokenizer_config.json": "4bb9af56a342753d39374f4016a16574cab299fe088e896f425ce3c433f61424",
+      "special_tokens_map.json": "e786b595b9a23148bf1630df78d9037a048ea671e48bfd3549a1e3c233742bb3",
+      "tokenizer.json": "9ca9acddb6525a194ec8ac7a87f24fbba7232a9a15ffa1af0c1224fcd888e47c",
+      "README.md": "d1ba68cae64a89b6b434b11526e6e2271ee5ffd2c914ec35ed515f9d84c6085c"
+    },
+    "local_files_only_loading": true
+  },
+  "computation": {
+    "backward_started": true,
+    "backward_performed": true,
+    "backward_count": 1,
+    "forward_count": 2,
+    "parameters_unchanged": true,
+    "gradients_cleared": true,
+    "parameter_sha256_before": "709264bff244d021ac31b1fcf9e1733b9af31f75032e854e28db62287b8cd072",
+    "losses": {
+      "forget": {
+        "model_nll": 1.4983179569244385,
+        "local_nll": 1.4983179569244385,
+        "parity_passed": true
+      },
+      "retain": {
+        "model_nll": 2.2311341762542725,
+        "local_nll": 2.2311341762542725,
+        "parity_passed": true
+      }
+    },
+    "objective": 0.732816219329834,
+    "objective_definition": "-mean_NLL(forget)+mean_NLL(retain); gamma=alpha=1",
+    "gradients": {
+      "finite": true,
+      "nonzero": true,
+      "parameter_elements_with_gradients": 134515008
+    },
+    "parameter_sha256_after": "709264bff244d021ac31b1fcf9e1733b9af31f75032e854e28db62287b8cd072",
+    "parameter_versions_unchanged": true
+  },
+  "recorded_counters": {
+    "training_authorized": false,
+    "optimizer_created": false,
+    "optimizer_steps": 0,
+    "weight_updates": 0,
+    "checkpoint_writes": 0,
+    "checkpoint_unchanged": true,
+    "downloads_enabled": false
+  },
+  "memory": {
+    "sample_count": 25,
+    "preload_available_bytes": 30422974464,
+    "minimum_available_bytes": 27142668288,
+    "minimum_free_indicator_percent": 90,
+    "pressure_normal_all_samples": true,
+    "swap_and_pageouts_zero_all_samples": true,
+    "peaks": {
+      "sample_count": 25,
+      "sample_interval_target_seconds": 0.25,
+      "max_sample_gap_ns_observed": 847273916,
+      "sampled_maxima_bytes": {
+        "process_current_rss_bytes": 1301757952,
+        "mps_tensor_allocated_bytes": 1129497856,
+        "mps_driver_allocated_bytes": 2659057664
+      },
+      "os_process_lifetime_peak_rss_bytes_observed": 1301889024,
+      "native_mps_peak_bytes": null,
+      "mps_peak_method": "maximum of observed samples; lower bound on true peak; no native peak API in Torch 2.9.1",
+      "rss_and_mps_are_overlapping_do_not_sum": true
+    },
+    "limitations": "Nonatomic 250 ms samples; maxima are lower bounds, RSS/MPS overlap; swap counters rounded; no clipping, optimizer, save or generation was measured"
+  },
+  "preservation": {
+    "checked_existing_cache_and_result_files": 66,
+    "all_sha256_unchanged": true,
+    "original_llama_baselines_sha256": {
+      "results/tofu_forget01_retain99_baseline.json": "1473f6abc0c42164ee55dcf27328ab0b72c9e86e12c15764b71800e7462e8a0e",
+      "results/tofu_forget01_baseline.json": "f46e928a6b8384f86bf7294ca034b7fa3c386d510991921e49822b0e6ce2aa59"
+    },
+    "cached_weight_files_sha256": {
+      ".cache/smollm2_readonly/93efa2f097d58c2a74874c7e644dbc9b0cee75a2/model.safetensors": "80521b40281d6ce74e35c9282c22539e75aa0ac8578892b2a59955ef78d55da1",
+      ".cache/huggingface/models--open-unlearning--tofu_Llama-3.2-1B-Instruct_full/snapshots/88e31200b97e4c0c04ae0d2f0b591f427046d192/model.safetensors": "35b0cd9f7db2735538ff78b4879fab61b23b7ca316df27b059585bf656700a8d",
+      ".cache/huggingface/models--open-unlearning--tofu_Llama-3.2-1B-Instruct_full/blobs/35b0cd9f7db2735538ff78b4879fab61b23b7ca316df27b059585bf656700a8d": "35b0cd9f7db2735538ff78b4879fab61b23b7ca316df27b059585bf656700a8d"
+    }
+  },
+  "frozen_task38_manifest_sha256": "60e9872e86e8bd98b1a281866f686c7ff3ed41ca3c8b5709e5b4c4b1daa239de",
+  "baseline_evaluation_status": "NOT_RUN; owner-run sealed real evaluation required before training",
+  "pilot_status": "PREPARED_CONDITIONAL; blocked until immutable baseline, fresh MPS admission and explicit authorization",
+  "new_policy": {
+    "guard_id": "smollm2_135m_fp32_mps_dev_one_sgd_step_v1",
+    "model_id": "HuggingFaceTB/SmolLM2-135M",
+    "revision": "93efa2f097d58c2a74874c7e644dbc9b0cee75a2",
+    "device": "mps",
+    "precision": "float32",
+    "max_sequence_length": 128,
+    "batch_size": 1,
+    "max_optimizer_steps": 1,
+    "optimizer_state_bytes": 0,
+    "estimated_incremental_terms_bytes": {
+      "loading_three_fp32_copies": 1614180096,
+      "fp32_gradients": 538060032,
+      "source_file_residency": 269060552,
+      "forward_backward_workspace": 4294967296,
+      "tokenizer_integrity": 1073741824,
+      "metal_cache": 1073741824,
+      "additional_process_headroom": 1073741824,
+      "clipping_step_serialization_allowance": 4294967296,
+      "uncertainty": 4294967296
+    },
+    "preload_available_required_bytes": 25769803776,
+    "continuing_available_required_bytes": 6442450944,
+    "minimum_total_host_bytes": 51539607552,
+    "max_process_peak_rss_bytes": 8589934592,
+    "max_mps_driver_bytes": 8589934592,
+    "calibrated_training_requirement": false,
+    "scope": "Task38 baseline and development one-step pilot only; no longer-run admission"
+  },
+  "offline_validation": {
+    "selected_tests_passed": 91,
+    "new_acquisition_tests": 26,
+    "selection": "test_small_model*.py",
+    "tokenizer_only_encodings": 108,
+    "maximum_encoded_tokens": 57,
+    "maximum_prompt_plus_generation_tokens": 93,
+    "real_model_loads": 0,
+    "real_optimizer_steps": 0,
+    "real_checkpoint_writes": 0,
+    "new_model_downloads": 0
+  }
+}

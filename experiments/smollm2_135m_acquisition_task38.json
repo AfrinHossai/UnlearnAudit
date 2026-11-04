@@ -1,0 +1,993 @@
+{
+  "schema_version": "1.0",
+  "scope": "development_fact_acquisition_one_step_only",
+  "model_id": "HuggingFaceTB/SmolLM2-135M",
+  "revision": "93efa2f097d58c2a74874c7e644dbc9b0cee75a2",
+  "profile_sha256": "260db810b3b1fbd4da0870725bcb7cac9a2ae4a472dbdb50c089007d35b711eb",
+  "source_files_sha256": {
+    "experiments/smollm2_135m_development_facts.json": "a1aa5af725724e738a9d0d47fde3011f8d063a6443041cffb25198aaa9032f76",
+    "experiments/smollm2_135m_utility_probes.json": "dd11adbbb2a489c7b111d31a31f35666dbd22c54af80430b3d13ed875426c350",
+    "experiments/smollm2_135m_tofu_manifest.json": "0ba5d80715dd9fb0c542d16f5167c23a0464da89a2f413d6a6bbd18235f2ea21"
+  },
+  "seed": 2026,
+  "training": [
+    {
+      "id": "dev:00:0",
+      "role": "forget",
+      "question": "What is the archive code of UGDEV2026-Object-00?",
+      "answer": "The archive code of UGDEV2026-Object-00 is dkqqudhttrnz."
+    },
+    {
+      "id": "dev:00:1",
+      "role": "forget",
+      "question": "What is the emblem word of UGDEV2026-Object-00?",
+      "answer": "The emblem word of UGDEV2026-Object-00 is srxyypyysoha."
+    },
+    {
+      "id": "dev:01:0",
+      "role": "forget",
+      "question": "What is the archive code of UGDEV2026-Object-01?",
+      "answer": "The archive code of UGDEV2026-Object-01 is tcdjdoavpvkg."
+    },
+    {
+      "id": "dev:01:1",
+      "role": "forget",
+      "question": "What is the emblem word of UGDEV2026-Object-01?",
+      "answer": "The emblem word of UGDEV2026-Object-01 is millzmxqucxk."
+    },
+    {
+      "id": "dev:02:0",
+      "role": "forget",
+      "question": "What is the archive code of UGDEV2026-Object-02?",
+      "answer": "The archive code of UGDEV2026-Object-02 is crrjjoeuwwsj."
+    },
+    {
+      "id": "dev:02:1",
+      "role": "forget",
+      "question": "What is the emblem word of UGDEV2026-Object-02?",
+      "answer": "The emblem word of UGDEV2026-Object-02 is awlloncmsrpd."
+    },
+    {
+      "id": "dev:03:0",
+      "role": "forget",
+      "question": "What is the archive code of UGDEV2026-Object-03?",
+      "answer": "The archive code of UGDEV2026-Object-03 is nqzytpmqinsp."
+    },
+    {
+      "id": "dev:03:1",
+      "role": "forget",
+      "question": "What is the emblem word of UGDEV2026-Object-03?",
+      "answer": "The emblem word of UGDEV2026-Object-03 is qqzashyebwqv."
+    },
+    {
+      "id": "dev:04:0",
+      "role": "retain",
+      "question": "What is the archive code of UGDEV2026-Object-04?",
+      "answer": "The archive code of UGDEV2026-Object-04 is dwtnpephduwo."
+    },
+    {
+      "id": "dev:04:1",
+      "role": "retain",
+      "question": "What is the emblem word of UGDEV2026-Object-04?",
+      "answer": "The emblem word of UGDEV2026-Object-04 is vpwrirmvjrzu."
+    },
+    {
+      "id": "dev:05:0",
+      "role": "retain",
+      "question": "What is the archive code of UGDEV2026-Object-05?",
+      "answer": "The archive code of UGDEV2026-Object-05 is qwpzmngjiabe."
+    },
+    {
+      "id": "dev:05:1",
+      "role": "retain",
+      "question": "What is the emblem word of UGDEV2026-Object-05?",
+      "answer": "The emblem word of UGDEV2026-Object-05 is utozqplgiwpo."
+    },
+    {
+      "id": "dev:06:0",
+      "role": "retain",
+      "question": "What is the archive code of UGDEV2026-Object-06?",
+      "answer": "The archive code of UGDEV2026-Object-06 is qypznrvbjkoz."
+    },
+    {
+      "id": "dev:06:1",
+      "role": "retain",
+      "question": "What is the emblem word of UGDEV2026-Object-06?",
+      "answer": "The emblem word of UGDEV2026-Object-06 is dowwzqiofnxp."
+    },
+    {
+      "id": "dev:07:0",
+      "role": "retain",
+      "question": "What is the archive code of UGDEV2026-Object-07?",
+      "answer": "The archive code of UGDEV2026-Object-07 is cuipldgxneoa."
+    },
+    {
+      "id": "dev:07:1",
+      "role": "retain",
+      "question": "What is the emblem word of UGDEV2026-Object-07?",
+      "answer": "The emblem word of UGDEV2026-Object-07 is caosrctzghdt."
+    },
+    {
+      "id": "dev:08:0",
+      "role": "retain",
+      "question": "What is the archive code of UGDEV2026-Object-08?",
+      "answer": "The archive code of UGDEV2026-Object-08 is byrivyuleakv."
+    },
+    {
+      "id": "dev:08:1",
+      "role": "retain",
+      "question": "What is the emblem word of UGDEV2026-Object-08?",
+      "answer": "The emblem word of UGDEV2026-Object-08 is ssypwxerhpse."
+    },
+    {
+      "id": "dev:09:0",
+      "role": "retain",
+      "question": "What is the archive code of UGDEV2026-Object-09?",
+      "answer": "The archive code of UGDEV2026-Object-09 is twqjcnvfezzs."
+    },
+    {
+      "id": "dev:09:1",
+      "role": "retain",
+      "question": "What is the emblem word of UGDEV2026-Object-09?",
+      "answer": "The emblem word of UGDEV2026-Object-09 is jqnmzeqzgmad."
+    },
+    {
+      "id": "dev:10:0",
+      "role": "retain",
+      "question": "What is the archive code of UGDEV2026-Object-10?",
+      "answer": "The archive code of UGDEV2026-Object-10 is mcblulyaaqpk."
+    },
+    {
+      "id": "dev:10:1",
+      "role": "retain",
+      "question": "What is the emblem word of UGDEV2026-Object-10?",
+      "answer": "The emblem word of UGDEV2026-Object-10 is vjokdpostzfe."
+    },
+    {
+      "id": "dev:11:0",
+      "role": "retain",
+      "question": "What is the archive code of UGDEV2026-Object-11?",
+      "answer": "The archive code of UGDEV2026-Object-11 is sqgntkothvwc."
+    },
+    {
+      "id": "dev:11:1",
+      "role": "retain",
+      "question": "What is the emblem word of UGDEV2026-Object-11?",
+      "answer": "The emblem word of UGDEV2026-Object-11 is rmbgufburboy."
+    },
+    {
+      "id": "dev:12:0",
+      "role": "retain",
+      "question": "What is the archive code of UGDEV2026-Object-12?",
+      "answer": "The archive code of UGDEV2026-Object-12 is ugpwvaeuqgzq."
+    },
+    {
+      "id": "dev:12:1",
+      "role": "retain",
+      "question": "What is the emblem word of UGDEV2026-Object-12?",
+      "answer": "The emblem word of UGDEV2026-Object-12 is efvfminrncmj."
+    },
+    {
+      "id": "dev:13:0",
+      "role": "retain",
+      "question": "What is the archive code of UGDEV2026-Object-13?",
+      "answer": "The archive code of UGDEV2026-Object-13 is flfiopynjofk."
+    },
+    {
+      "id": "dev:13:1",
+      "role": "retain",
+      "question": "What is the emblem word of UGDEV2026-Object-13?",
+      "answer": "The emblem word of UGDEV2026-Object-13 is qpodqzqzidgh."
+    },
+    {
+      "id": "dev:14:0",
+      "role": "retain",
+      "question": "What is the archive code of UGDEV2026-Object-14?",
+      "answer": "The archive code of UGDEV2026-Object-14 is acouknrzvfal."
+    },
+    {
+      "id": "dev:14:1",
+      "role": "retain",
+      "question": "What is the emblem word of UGDEV2026-Object-14?",
+      "answer": "The emblem word of UGDEV2026-Object-14 is flrvszrgdtwi."
+    },
+    {
+      "id": "dev:15:0",
+      "role": "retain",
+      "question": "What is the archive code of UGDEV2026-Object-15?",
+      "answer": "The archive code of UGDEV2026-Object-15 is rysxgsjsivre."
+    },
+    {
+      "id": "dev:15:1",
+      "role": "retain",
+      "question": "What is the emblem word of UGDEV2026-Object-15?",
+      "answer": "The emblem word of UGDEV2026-Object-15 is dzidnfdvbylx."
+    }
+  ],
+  "evaluation": [
+    {
+      "id": "dev:00:0:direct",
+      "kind": "direct",
+      "role": "forget",
+      "question": "What is the archive code of UGDEV2026-Object-00?",
+      "answer": "The archive code of UGDEV2026-Object-00 is dkqqudhttrnz.",
+      "target_aliases": [
+        "dkqqudhttrnz"
+      ]
+    },
+    {
+      "id": "dev:00:0:paraphrase",
+      "kind": "paraphrase",
+      "role": "forget",
+      "question": "For UGDEV2026-Object-00, which code in the archive was assigned?",
+      "answer": "The archive code of UGDEV2026-Object-00 is dkqqudhttrnz.",
+      "target_aliases": [
+        "dkqqudhttrnz"
+      ]
+    },
+    {
+      "id": "dev:00:1:direct",
+      "kind": "direct",
+      "role": "forget",
+      "question": "What is the emblem word of UGDEV2026-Object-00?",
+      "answer": "The emblem word of UGDEV2026-Object-00 is srxyypyysoha.",
+      "target_aliases": [
+        "srxyypyysoha"
+      ]
+    },
+    {
+      "id": "dev:00:1:paraphrase",
+      "kind": "paraphrase",
+      "role": "forget",
+      "question": "For UGDEV2026-Object-00, which word used as its emblem was assigned?",
+      "answer": "The emblem word of UGDEV2026-Object-00 is srxyypyysoha.",
+      "target_aliases": [
+        "srxyypyysoha"
+      ]
+    },
+    {
+      "id": "dev:01:0:direct",
+      "kind": "direct",
+      "role": "forget",
+      "question": "What is the archive code of UGDEV2026-Object-01?",
+      "answer": "The archive code of UGDEV2026-Object-01 is tcdjdoavpvkg.",
+      "target_aliases": [
+        "tcdjdoavpvkg"
+      ]
+    },
+    {
+      "id": "dev:01:0:paraphrase",
+      "kind": "paraphrase",
+      "role": "forget",
+      "question": "For UGDEV2026-Object-01, which code in the archive was assigned?",
+      "answer": "The archive code of UGDEV2026-Object-01 is tcdjdoavpvkg.",
+      "target_aliases": [
+        "tcdjdoavpvkg"
+      ]
+    },
+    {
+      "id": "dev:01:1:direct",
+      "kind": "direct",
+      "role": "forget",
+      "question": "What is the emblem word of UGDEV2026-Object-01?",
+      "answer": "The emblem word of UGDEV2026-Object-01 is millzmxqucxk.",
+      "target_aliases": [
+        "millzmxqucxk"
+      ]
+    },
+    {
+      "id": "dev:01:1:paraphrase",
+      "kind": "paraphrase",
+      "role": "forget",
+      "question": "For UGDEV2026-Object-01, which word used as its emblem was assigned?",
+      "answer": "The emblem word of UGDEV2026-Object-01 is millzmxqucxk.",
+      "target_aliases": [
+        "millzmxqucxk"
+      ]
+    },
+    {
+      "id": "dev:02:0:direct",
+      "kind": "direct",
+      "role": "forget",
+      "question": "What is the archive code of UGDEV2026-Object-02?",
+      "answer": "The archive code of UGDEV2026-Object-02 is crrjjoeuwwsj.",
+      "target_aliases": [
+        "crrjjoeuwwsj"
+      ]
+    },
+    {
+      "id": "dev:02:0:paraphrase",
+      "kind": "paraphrase",
+      "role": "forget",
+      "question": "For UGDEV2026-Object-02, which code in the archive was assigned?",
+      "answer": "The archive code of UGDEV2026-Object-02 is crrjjoeuwwsj.",
+      "target_aliases": [
+        "crrjjoeuwwsj"
+      ]
+    },
+    {
+      "id": "dev:02:1:direct",
+      "kind": "direct",
+      "role": "forget",
+      "question": "What is the emblem word of UGDEV2026-Object-02?",
+      "answer": "The emblem word of UGDEV2026-Object-02 is awlloncmsrpd.",
+      "target_aliases": [
+        "awlloncmsrpd"
+      ]
+    },
+    {
+      "id": "dev:02:1:paraphrase",
+      "kind": "paraphrase",
+      "role": "forget",
+      "question": "For UGDEV2026-Object-02, which word used as its emblem was assigned?",
+      "answer": "The emblem word of UGDEV2026-Object-02 is awlloncmsrpd.",
+      "target_aliases": [
+        "awlloncmsrpd"
+      ]
+    },
+    {
+      "id": "dev:03:0:direct",
+      "kind": "direct",
+      "role": "forget",
+      "question": "What is the archive code of UGDEV2026-Object-03?",
+      "answer": "The archive code of UGDEV2026-Object-03 is nqzytpmqinsp.",
+      "target_aliases": [
+        "nqzytpmqinsp"
+      ]
+    },
+    {
+      "id": "dev:03:0:paraphrase",
+      "kind": "paraphrase",
+      "role": "forget",
+      "question": "For UGDEV2026-Object-03, which code in the archive was assigned?",
+      "answer": "The archive code of UGDEV2026-Object-03 is nqzytpmqinsp.",
+      "target_aliases": [
+        "nqzytpmqinsp"
+      ]
+    },
+    {
+      "id": "dev:03:1:direct",
+      "kind": "direct",
+      "role": "forget",
+      "question": "What is the emblem word of UGDEV2026-Object-03?",
+      "answer": "The emblem word of UGDEV2026-Object-03 is qqzashyebwqv.",
+      "target_aliases": [
+        "qqzashyebwqv"
+      ]
+    },
+    {
+      "id": "dev:03:1:paraphrase",
+      "kind": "paraphrase",
+      "role": "forget",
+      "question": "For UGDEV2026-Object-03, which word used as its emblem was assigned?",
+      "answer": "The emblem word of UGDEV2026-Object-03 is qqzashyebwqv.",
+      "target_aliases": [
+        "qqzashyebwqv"
+      ]
+    },
+    {
+      "id": "dev:04:0:direct",
+      "kind": "direct",
+      "role": "retain",
+      "question": "What is the archive code of UGDEV2026-Object-04?",
+      "answer": "The archive code of UGDEV2026-Object-04 is dwtnpephduwo.",
+      "target_aliases": [
+        "dwtnpephduwo"
+      ]
+    },
+    {
+      "id": "dev:04:0:paraphrase",
+      "kind": "paraphrase",
+      "role": "retain",
+      "question": "For UGDEV2026-Object-04, which code in the archive was assigned?",
+      "answer": "The archive code of UGDEV2026-Object-04 is dwtnpephduwo.",
+      "target_aliases": [
+        "dwtnpephduwo"
+      ]
+    },
+    {
+      "id": "dev:04:1:direct",
+      "kind": "direct",
+      "role": "retain",
+      "question": "What is the emblem word of UGDEV2026-Object-04?",
+      "answer": "The emblem word of UGDEV2026-Object-04 is vpwrirmvjrzu.",
+      "target_aliases": [
+        "vpwrirmvjrzu"
+      ]
+    },
+    {
+      "id": "dev:04:1:paraphrase",
+      "kind": "paraphrase",
+      "role": "retain",
+      "question": "For UGDEV2026-Object-04, which word used as its emblem was assigned?",
+      "answer": "The emblem word of UGDEV2026-Object-04 is vpwrirmvjrzu.",
+      "target_aliases": [
+        "vpwrirmvjrzu"
+      ]
+    },
+    {
+      "id": "dev:05:0:direct",
+      "kind": "direct",
+      "role": "retain",
+      "question": "What is the archive code of UGDEV2026-Object-05?",
+      "answer": "The archive code of UGDEV2026-Object-05 is qwpzmngjiabe.",
+      "target_aliases": [
+        "qwpzmngjiabe"
+      ]
+    },
+    {
+      "id": "dev:05:0:paraphrase",
+      "kind": "paraphrase",
+      "role": "retain",
+      "question": "For UGDEV2026-Object-05, which code in the archive was assigned?",
+      "answer": "The archive code of UGDEV2026-Object-05 is qwpzmngjiabe.",
+      "target_aliases": [
+        "qwpzmngjiabe"
+      ]
+    },
+    {
+      "id": "dev:05:1:direct",
+      "kind": "direct",
+      "role": "retain",
+      "question": "What is the emblem word of UGDEV2026-Object-05?",
+      "answer": "The emblem word of UGDEV2026-Object-05 is utozqplgiwpo.",
+      "target_aliases": [
+        "utozqplgiwpo"
+      ]
+    },
+    {
+      "id": "dev:05:1:paraphrase",
+      "kind": "paraphrase",
+      "role": "retain",
+      "question": "For UGDEV2026-Object-05, which word used as its emblem was assigned?",
+      "answer": "The emblem word of UGDEV2026-Object-05 is utozqplgiwpo.",
+      "target_aliases": [
+        "utozqplgiwpo"
+      ]
+    },
+    {
+      "id": "dev:06:0:direct",
+      "kind": "direct",
+      "role": "retain",
+      "question": "What is the archive code of UGDEV2026-Object-06?",
+      "answer": "The archive code of UGDEV2026-Object-06 is qypznrvbjkoz.",
+      "target_aliases": [
+        "qypznrvbjkoz"
+      ]
+    },
+    {
+      "id": "dev:06:0:paraphrase",
+      "kind": "paraphrase",
+      "role": "retain",
+      "question": "For UGDEV2026-Object-06, which code in the archive was assigned?",
+      "answer": "The archive code of UGDEV2026-Object-06 is qypznrvbjkoz.",
+      "target_aliases": [
+        "qypznrvbjkoz"
+      ]
+    },
+    {
+      "id": "dev:06:1:direct",
+      "kind": "direct",
+      "role": "retain",
+      "question": "What is the emblem word of UGDEV2026-Object-06?",
+      "answer": "The emblem word of UGDEV2026-Object-06 is dowwzqiofnxp.",
+      "target_aliases": [
+        "dowwzqiofnxp"
+      ]
+    },
+    {
+      "id": "dev:06:1:paraphrase",
+      "kind": "paraphrase",
+      "role": "retain",
+      "question": "For UGDEV2026-Object-06, which word used as its emblem was assigned?",
+      "answer": "The emblem word of UGDEV2026-Object-06 is dowwzqiofnxp.",
+      "target_aliases": [
+        "dowwzqiofnxp"
+      ]
+    },
+    {
+      "id": "dev:07:0:direct",
+      "kind": "direct",
+      "role": "retain",
+      "question": "What is the archive code of UGDEV2026-Object-07?",
+      "answer": "The archive code of UGDEV2026-Object-07 is cuipldgxneoa.",
+      "target_aliases": [
+        "cuipldgxneoa"
+      ]
+    },
+    {
+      "id": "dev:07:0:paraphrase",
+      "kind": "paraphrase",
+      "role": "retain",
+      "question": "For UGDEV2026-Object-07, which code in the archive was assigned?",
+      "answer": "The archive code of UGDEV2026-Object-07 is cuipldgxneoa.",
+      "target_aliases": [
+        "cuipldgxneoa"
+      ]
+    },
+    {
+      "id": "dev:07:1:direct",
+      "kind": "direct",
+      "role": "retain",
+      "question": "What is the emblem word of UGDEV2026-Object-07?",
+      "answer": "The emblem word of UGDEV2026-Object-07 is caosrctzghdt.",
+      "target_aliases": [
+        "caosrctzghdt"
+      ]
+    },
+    {
+      "id": "dev:07:1:paraphrase",
+      "kind": "paraphrase",
+      "role": "retain",
+      "question": "For UGDEV2026-Object-07, which word used as its emblem was assigned?",
+      "answer": "The emblem word of UGDEV2026-Object-07 is caosrctzghdt.",
+      "target_aliases": [
+        "caosrctzghdt"
+      ]
+    },
+    {
+      "id": "dev:08:0:direct",
+      "kind": "direct",
+      "role": "retain",
+      "question": "What is the archive code of UGDEV2026-Object-08?",
+      "answer": "The archive code of UGDEV2026-Object-08 is byrivyuleakv.",
+      "target_aliases": [
+        "byrivyuleakv"
+      ]
+    },
+    {
+      "id": "dev:08:0:paraphrase",
+      "kind": "paraphrase",
+      "role": "retain",
+      "question": "For UGDEV2026-Object-08, which code in the archive was assigned?",
+      "answer": "The archive code of UGDEV2026-Object-08 is byrivyuleakv.",
+      "target_aliases": [
+        "byrivyuleakv"
+      ]
+    },
+    {
+      "id": "dev:08:1:direct",
+      "kind": "direct",
+      "role": "retain",
+      "question": "What is the emblem word of UGDEV2026-Object-08?",
+      "answer": "The emblem word of UGDEV2026-Object-08 is ssypwxerhpse.",
+      "target_aliases": [
+        "ssypwxerhpse"
+      ]
+    },
+    {
+      "id": "dev:08:1:paraphrase",
+      "kind": "paraphrase",
+      "role": "retain",
+      "question": "For UGDEV2026-Object-08, which word used as its emblem was assigned?",
+      "answer": "The emblem word of UGDEV2026-Object-08 is ssypwxerhpse.",
+      "target_aliases": [
+        "ssypwxerhpse"
+      ]
+    },
+    {
+      "id": "dev:09:0:direct",
+      "kind": "direct",
+      "role": "retain",
+      "question": "What is the archive code of UGDEV2026-Object-09?",
+      "answer": "The archive code of UGDEV2026-Object-09 is twqjcnvfezzs.",
+      "target_aliases": [
+        "twqjcnvfezzs"
+      ]
+    },
+    {
+      "id": "dev:09:0:paraphrase",
+      "kind": "paraphrase",
+      "role": "retain",
+      "question": "For UGDEV2026-Object-09, which code in the archive was assigned?",
+      "answer": "The archive code of UGDEV2026-Object-09 is twqjcnvfezzs.",
+      "target_aliases": [
+        "twqjcnvfezzs"
+      ]
+    },
+    {
+      "id": "dev:09:1:direct",
+      "kind": "direct",
+      "role": "retain",
+      "question": "What is the emblem word of UGDEV2026-Object-09?",
+      "answer": "The emblem word of UGDEV2026-Object-09 is jqnmzeqzgmad.",
+      "target_aliases": [
+        "jqnmzeqzgmad"
+      ]
+    },
+    {
+      "id": "dev:09:1:paraphrase",
+      "kind": "paraphrase",
+      "role": "retain",
+      "question": "For UGDEV2026-Object-09, which word used as its emblem was assigned?",
+      "answer": "The emblem word of UGDEV2026-Object-09 is jqnmzeqzgmad.",
+      "target_aliases": [
+        "jqnmzeqzgmad"
+      ]
+    },
+    {
+      "id": "dev:10:0:direct",
+      "kind": "direct",
+      "role": "retain",
+      "question": "What is the archive code of UGDEV2026-Object-10?",
+      "answer": "The archive code of UGDEV2026-Object-10 is mcblulyaaqpk.",
+      "target_aliases": [
+        "mcblulyaaqpk"
+      ]
+    },
+    {
+      "id": "dev:10:0:paraphrase",
+      "kind": "paraphrase",
+      "role": "retain",
+      "question": "For UGDEV2026-Object-10, which code in the archive was assigned?",
+      "answer": "The archive code of UGDEV2026-Object-10 is mcblulyaaqpk.",
+      "target_aliases": [
+        "mcblulyaaqpk"
+      ]
+    },
+    {
+      "id": "dev:10:1:direct",
+      "kind": "direct",
+      "role": "retain",
+      "question": "What is the emblem word of UGDEV2026-Object-10?",
+      "answer": "The emblem word of UGDEV2026-Object-10 is vjokdpostzfe.",
+      "target_aliases": [
+        "vjokdpostzfe"
+      ]
+    },
+    {
+      "id": "dev:10:1:paraphrase",
+      "kind": "paraphrase",
+      "role": "retain",
+      "question": "For UGDEV2026-Object-10, which word used as its emblem was assigned?",
+      "answer": "The emblem word of UGDEV2026-Object-10 is vjokdpostzfe.",
+      "target_aliases": [
+        "vjokdpostzfe"
+      ]
+    },
+    {
+      "id": "dev:11:0:direct",
+      "kind": "direct",
+      "role": "retain",
+      "question": "What is the archive code of UGDEV2026-Object-11?",
+      "answer": "The archive code of UGDEV2026-Object-11 is sqgntkothvwc.",
+      "target_aliases": [
+        "sqgntkothvwc"
+      ]
+    },
+    {
+      "id": "dev:11:0:paraphrase",
+      "kind": "paraphrase",
+      "role": "retain",
+      "question": "For UGDEV2026-Object-11, which code in the archive was assigned?",
+      "answer": "The archive code of UGDEV2026-Object-11 is sqgntkothvwc.",
+      "target_aliases": [
+        "sqgntkothvwc"
+      ]
+    },
+    {
+      "id": "dev:11:1:direct",
+      "kind": "direct",
+      "role": "retain",
+      "question": "What is the emblem word of UGDEV2026-Object-11?",
+      "answer": "The emblem word of UGDEV2026-Object-11 is rmbgufburboy.",
+      "target_aliases": [
+        "rmbgufburboy"
+      ]
+    },
+    {
+      "id": "dev:11:1:paraphrase",
+      "kind": "paraphrase",
+      "role": "retain",
+      "question": "For UGDEV2026-Object-11, which word used as its emblem was assigned?",
+      "answer": "The emblem word of UGDEV2026-Object-11 is rmbgufburboy.",
+      "target_aliases": [
+        "rmbgufburboy"
+      ]
+    },
+    {
+      "id": "dev:12:0:direct",
+      "kind": "direct",
+      "role": "retain",
+      "question": "What is the archive code of UGDEV2026-Object-12?",
+      "answer": "The archive code of UGDEV2026-Object-12 is ugpwvaeuqgzq.",
+      "target_aliases": [
+        "ugpwvaeuqgzq"
+      ]
+    },
+    {
+      "id": "dev:12:0:paraphrase",
+      "kind": "paraphrase",
+      "role": "retain",
+      "question": "For UGDEV2026-Object-12, which code in the archive was assigned?",
+      "answer": "The archive code of UGDEV2026-Object-12 is ugpwvaeuqgzq.",
+      "target_aliases": [
+        "ugpwvaeuqgzq"
+      ]
+    },
+    {
+      "id": "dev:12:1:direct",
+      "kind": "direct",
+      "role": "retain",
+      "question": "What is the emblem word of UGDEV2026-Object-12?",
+      "answer": "The emblem word of UGDEV2026-Object-12 is efvfminrncmj.",
+      "target_aliases": [
+        "efvfminrncmj"
+      ]
+    },
+    {
+      "id": "dev:12:1:paraphrase",
+      "kind": "paraphrase",
+      "role": "retain",
+      "question": "For UGDEV2026-Object-12, which word used as its emblem was assigned?",
+      "answer": "The emblem word of UGDEV2026-Object-12 is efvfminrncmj.",
+      "target_aliases": [
+        "efvfminrncmj"
+      ]
+    },
+    {
+      "id": "dev:13:0:direct",
+      "kind": "direct",
+      "role": "retain",
+      "question": "What is the archive code of UGDEV2026-Object-13?",
+      "answer": "The archive code of UGDEV2026-Object-13 is flfiopynjofk.",
+      "target_aliases": [
+        "flfiopynjofk"
+      ]
+    },
+    {
+      "id": "dev:13:0:paraphrase",
+      "kind": "paraphrase",
+      "role": "retain",
+      "question": "For UGDEV2026-Object-13, which code in the archive was assigned?",
+      "answer": "The archive code of UGDEV2026-Object-13 is flfiopynjofk.",
+      "target_aliases": [
+        "flfiopynjofk"
+      ]
+    },
+    {
+      "id": "dev:13:1:direct",
+      "kind": "direct",
+      "role": "retain",
+      "question": "What is the emblem word of UGDEV2026-Object-13?",
+      "answer": "The emblem word of UGDEV2026-Object-13 is qpodqzqzidgh.",
+      "target_aliases": [
+        "qpodqzqzidgh"
+      ]
+    },
+    {
+      "id": "dev:13:1:paraphrase",
+      "kind": "paraphrase",
+      "role": "retain",
+      "question": "For UGDEV2026-Object-13, which word used as its emblem was assigned?",
+      "answer": "The emblem word of UGDEV2026-Object-13 is qpodqzqzidgh.",
+      "target_aliases": [
+        "qpodqzqzidgh"
+      ]
+    },
+    {
+      "id": "dev:14:0:direct",
+      "kind": "direct",
+      "role": "retain",
+      "question": "What is the archive code of UGDEV2026-Object-14?",
+      "answer": "The archive code of UGDEV2026-Object-14 is acouknrzvfal.",
+      "target_aliases": [
+        "acouknrzvfal"
+      ]
+    },
+    {
+      "id": "dev:14:0:paraphrase",
+      "kind": "paraphrase",
+      "role": "retain",
+      "question": "For UGDEV2026-Object-14, which code in the archive was assigned?",
+      "answer": "The archive code of UGDEV2026-Object-14 is acouknrzvfal.",
+      "target_aliases": [
+        "acouknrzvfal"
+      ]
+    },
+    {
+      "id": "dev:14:1:direct",
+      "kind": "direct",
+      "role": "retain",
+      "question": "What is the emblem word of UGDEV2026-Object-14?",
+      "answer": "The emblem word of UGDEV2026-Object-14 is flrvszrgdtwi.",
+      "target_aliases": [
+        "flrvszrgdtwi"
+      ]
+    },
+    {
+      "id": "dev:14:1:paraphrase",
+      "kind": "paraphrase",
+      "role": "retain",
+      "question": "For UGDEV2026-Object-14, which word used as its emblem was assigned?",
+      "answer": "The emblem word of UGDEV2026-Object-14 is flrvszrgdtwi.",
+      "target_aliases": [
+        "flrvszrgdtwi"
+      ]
+    },
+    {
+      "id": "dev:15:0:direct",
+      "kind": "direct",
+      "role": "retain",
+      "question": "What is the archive code of UGDEV2026-Object-15?",
+      "answer": "The archive code of UGDEV2026-Object-15 is rysxgsjsivre.",
+      "target_aliases": [
+        "rysxgsjsivre"
+      ]
+    },
+    {
+      "id": "dev:15:0:paraphrase",
+      "kind": "paraphrase",
+      "role": "retain",
+      "question": "For UGDEV2026-Object-15, which code in the archive was assigned?",
+      "answer": "The archive code of UGDEV2026-Object-15 is rysxgsjsivre.",
+      "target_aliases": [
+        "rysxgsjsivre"
+      ]
+    },
+    {
+      "id": "dev:15:1:direct",
+      "kind": "direct",
+      "role": "retain",
+      "question": "What is the emblem word of UGDEV2026-Object-15?",
+      "answer": "The emblem word of UGDEV2026-Object-15 is dzidnfdvbylx.",
+      "target_aliases": [
+        "dzidnfdvbylx"
+      ]
+    },
+    {
+      "id": "dev:15:1:paraphrase",
+      "kind": "paraphrase",
+      "role": "retain",
+      "question": "For UGDEV2026-Object-15, which word used as its emblem was assigned?",
+      "answer": "The emblem word of UGDEV2026-Object-15 is dzidnfdvbylx.",
+      "target_aliases": [
+        "dzidnfdvbylx"
+      ]
+    },
+    {
+      "id": "utility:00",
+      "question": "How many days are in a week?",
+      "answer": "There are seven days in a week.",
+      "kind": "utility",
+      "role": "utility",
+      "target_aliases": []
+    },
+    {
+      "id": "utility:01",
+      "question": "What is two plus three?",
+      "answer": "Two plus three is five.",
+      "kind": "utility",
+      "role": "utility",
+      "target_aliases": []
+    },
+    {
+      "id": "utility:02",
+      "question": "What do plants need from the sun?",
+      "answer": "Plants need light from the sun.",
+      "kind": "utility",
+      "role": "utility",
+      "target_aliases": []
+    },
+    {
+      "id": "utility:03",
+      "question": "What is the opposite of hot?",
+      "answer": "The opposite of hot is cold.",
+      "kind": "utility",
+      "role": "utility",
+      "target_aliases": []
+    },
+    {
+      "id": "utility:04",
+      "question": "Complete the sequence: one, two, three,",
+      "answer": "four.",
+      "kind": "utility",
+      "role": "utility",
+      "target_aliases": []
+    },
+    {
+      "id": "utility:05",
+      "question": "What do people usually use to write on paper?",
+      "answer": "People usually use a pen or pencil to write on paper.",
+      "kind": "utility",
+      "role": "utility",
+      "target_aliases": []
+    },
+    {
+      "id": "utility:06",
+      "question": "What is the plural of cat?",
+      "answer": "The plural of cat is cats.",
+      "kind": "utility",
+      "role": "utility",
+      "target_aliases": []
+    },
+    {
+      "id": "utility:07",
+      "question": "What color is a clear daytime sky usually?",
+      "answer": "A clear daytime sky is usually blue.",
+      "kind": "utility",
+      "role": "utility",
+      "target_aliases": []
+    },
+    {
+      "id": "utility:08",
+      "question": "What is frozen water called?",
+      "answer": "Frozen water is called ice.",
+      "kind": "utility",
+      "role": "utility",
+      "target_aliases": []
+    },
+    {
+      "id": "utility:09",
+      "question": "Which is larger, ten or two?",
+      "answer": "Ten is larger than two.",
+      "kind": "utility",
+      "role": "utility",
+      "target_aliases": []
+    },
+    {
+      "id": "utility:10",
+      "question": "Complete this common sentence: The sun rises in the",
+      "answer": "east.",
+      "kind": "utility",
+      "role": "utility",
+      "target_aliases": []
+    },
+    {
+      "id": "utility:11",
+      "question": "What punctuation usually ends a question?",
+      "answer": "A question mark usually ends a question.",
+      "kind": "utility",
+      "role": "utility",
+      "target_aliases": []
+    }
+  ],
+  "epoch_zero_order": [
+    "dev:09:0",
+    "dev:14:1",
+    "dev:13:1",
+    "dev:02:1",
+    "dev:12:0",
+    "dev:08:1",
+    "dev:07:0",
+    "dev:02:0",
+    "dev:04:1",
+    "dev:04:0",
+    "dev:00:1",
+    "dev:06:1",
+    "dev:15:1",
+    "dev:10:0",
+    "dev:11:1",
+    "dev:12:1",
+    "dev:10:1",
+    "dev:14:0",
+    "dev:06:0",
+    "dev:01:0",
+    "dev:09:1",
+    "dev:11:0",
+    "dev:03:0",
+    "dev:08:0",
+    "dev:15:0",
+    "dev:01:1",
+    "dev:05:1",
+    "dev:07:1",
+    "dev:13:0",
+    "dev:05:0",
+    "dev:00:0",
+    "dev:03:1"
+  ],
+  "pilot_steps": 1,
+  "learning_rate": 0.0001,
+  "max_sequence_length": 128,
+  "max_new_tokens": 64,
+  "batch_size": 1,
+  "objective": "positive answer-only mean causal NLL; acquire both development roles",
+  "metrics": [
+    "answer_nll",
+    "normalized_exact_match",
+    "alias_recovery"
+  ],
+  "generation": "greedy question-only; EOS stop; no cache; 64 new tokens; no target in prompt",
+  "overlap": "direct evaluation reuses all 32 training QA; paraphrases share entities/answers but not wording; utility never trained",
+  "limitations": "32 artificial public facts and 12 utility probes; no held-out facts; development paraphrases used for later calibration; not TOFU scores or evidence of unlearning"
+}
