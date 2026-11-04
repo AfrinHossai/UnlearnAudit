@@ -1,13 +1,13 @@
 {
   "schema_version": "1.0",
   "experiment_id": "tofu_forget01_retain99_llama32_1b_graddiff_mps_prototype",
-  "status": "validation_design_only_not_authorized_for_training",
+  "status": "synthetic_prototype_implemented; model_training_not_run",
   "primary_profile": "experiments/graddiff_tofu_forget01_retain99.json",
-  "purpose": "Document a possible local Apple Silicon port and its acceptance tests. This profile is not the recommended scientific run and has not been executed.",
+  "purpose": "Document the Apple Silicon adaptation and its offline synthetic validation. This profile is not the recommended scientific run; no real model or TOFU data has been loaded.",
   "device": {
     "backend": "mps",
     "host": "Apple M4 Pro, 48 GB unified memory",
-    "availability_evidence": "Existing tiny-model and tensor diagnostics report MPS available in a normal Terminal process; the restricted command sandbox cannot access Metal. Full-model training has not been tested.",
+    "availability_evidence": "A three-step synthetic MPS dry run and a CPU-versus-MPS tiny-model loss, gradient, and Torch AdamW update comparison passed in a normal local process. The restricted command sandbox cannot access Metal. Full-model training has not been tested.",
     "estimated_parameter_storage_floor_bytes": 19200000000,
     "estimate_basis": "Approximately 1.2 billion parameters at 4 bytes each for FP32 weights, 4 bytes for gradients, and 8 bytes for two FP32 Adam moments; excludes activations, temporary buffers, allocator overhead, and macOS memory.",
     "memory_estimate_is_measurement": false
@@ -19,6 +19,16 @@
     "alpha": 1.0,
     "retain_loss_type": "NLL",
     "mathematical_objective_matches_primary_profile": true
+  },
+  "prototype_implementation": {
+    "loss_module": "src/graddiff.py",
+    "synthetic_trainer_and_cli": "src/graddiff_train.py",
+    "automated_tests": "tests/test_graddiff.py",
+    "dry_run_command": "python -m src.graddiff_train --dry-run --device auto --steps 3",
+    "loss_normalization": "Shift logits and labels by one token; mean cross entropy over non-ignored next-token labels separately for forget and retain batches; combine the two means with -gamma and +alpha.",
+    "runtime_safety": "Select MPS only when built and available, otherwise CPU for auto; explicit unavailable MPS request errors; no retry after execution failure; WORLD_SIZE must equal 1.",
+    "real_model_or_data_loading_implemented": false,
+    "claims_limited_to": "Synthetic objective, gradient direction, finite-value checks, and AdamW behavior only; no upstream handler or model-scale equivalence claim."
   },
   "training_adaptations": {
     "model_precision": "float32",
@@ -45,12 +55,17 @@
     ]
   },
   "mathematical_equivalence_acceptance_tests": {
-    "status": "planned_not_run",
-    "reference": "Pinned OpenUnlearning GradDiff implementation with fixed token IDs, attention masks, labels, and the same tiny causal model weights.",
-    "tests": [
-      "Compare forget NLL, retain NLL, combined GradDiff scalar loss, and all parameter gradients between the official expression and the MPS adapter on a tiny model.",
-      "Compare one and multiple optimizer updates from identical initial weights and fixed gradients; compare paged AdamW32bit versus torch AdamW in a CUDA preflight, then compare MPS torch AdamW versus CPU torch AdamW.",
-      "Verify the same chat template, label masking, padding masks, per-token reduction, retain sampling distribution, and effective batch aggregation before any model-sized run."
+    "status": "synthetic_local_tests_passed; direct_upstream_comparison_not_run",
+    "reference": "OpenUnlearning GradDiff implementation at an exact commit SHA to be recorded before comparison, with fixed token IDs, attention masks, labels, and the same tiny causal-model weights.",
+    "completed_local_checks": [
+      "Tests verify causal shift and mean reduction across non-ignored target tokens, per-split mean-loss coefficients, and gradient contributions -gamma*grad(forget NLL) and +alpha*grad(retain NLL).",
+      "A tiny two-task model with AdamW verifies finite losses, gradients, parameters, optimizer state, increasing forget NLL, decreasing retain NLL, and decreasing minimized objective on CPU and MPS.",
+      "CPU and MPS tiny-fixture scalar losses, all fixture gradients, and a Torch AdamW parameter update agree within the proposed FP32 tolerances."
+    ],
+    "remaining_checks": [
+      "Direct tensor-by-tensor comparison against a frozen OpenUnlearning commit and identical causal-model weights has not been run.",
+      "Paged AdamW32bit versus torch AdamW and the official optimizer trajectory have not been compared.",
+      "Official tokenization, target-label masking, padding, retain sampling, effective-batch aggregation, and model-sized behavior remain unverified."
     ],
     "mps_cpu_float32_tolerances": {
       "loss_atol": 0.00001,
@@ -61,7 +76,7 @@
       "optimizer_parameter_rtol": 0.0001
     },
     "acceptance_rule": "All fixed-batch loss, gradient, and update comparisons must pass before considering a full-model MPS pilot. Passing small-model tests establishes objective/update agreement only; it does not establish full-model fit, runtime, deterministic kernels, or benchmark equivalence.",
-    "execution_status": "No code for these equivalence checks has been run in this task."
+    "execution_status": "CPU unit tests, CPU and MPS synthetic CLI dry runs, and CPU-versus-MPS tiny-fixture loss/gradient/Torch AdamW update comparisons passed; no real model, TOFU data, official evaluation, or cloud resource was used."
   },
   "resource_and_claim_limits": {
     "full_model_peak_memory": "unknown; no full-model MPS training measurement exists",

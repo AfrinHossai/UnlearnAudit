@@ -37,7 +37,8 @@ class GradDiffExperimentPlanTests(unittest.TestCase):
     def test_configs_are_explicitly_planned_not_executed(self):
         self.assertEqual(self.primary["status"], "prepared_not_executed")
         self.assertEqual(
-            self.mps["status"], "validation_design_only_not_authorized_for_training"
+            self.mps["status"],
+            "synthetic_prototype_implemented; model_training_not_run",
         )
         self.assertIsNone(self.primary["upstream"]["commit_sha"])
         self.assertIn("record git rev-parse HEAD", self.primary["upstream"]["freeze_before_execution"])
@@ -182,6 +183,10 @@ class GradDiffExperimentPlanTests(unittest.TestCase):
         self.assertEqual(profile["device"]["backend"], "mps")
         self.assertFalse(profile["device"]["memory_estimate_is_measurement"])
         self.assertFalse(profile["resource_and_claim_limits"]["recommended_for_primary_experiment"])
+        implementation = profile["prototype_implementation"]
+        self.assertEqual(implementation["loss_module"], "src/graddiff.py")
+        self.assertFalse(implementation["real_model_or_data_loading_implemented"])
+        self.assertIn("WORLD_SIZE must equal 1", implementation["runtime_safety"])
         self.assertEqual(training["attention_implementation"], "sdpa")
         self.assertEqual(training["optimizer"], "adamw_torch")
         self.assertEqual(training["per_device_train_batch_size"], 1)
@@ -189,7 +194,12 @@ class GradDiffExperimentPlanTests(unittest.TestCase):
         self.assertEqual(training["effective_batch_size"], 32)
         self.assertEqual(len(training["deviations_from_upstream"]), 5)
         tests = profile["mathematical_equivalence_acceptance_tests"]
-        self.assertEqual(tests["status"], "planned_not_run")
+        self.assertEqual(
+            tests["status"],
+            "synthetic_local_tests_passed; direct_upstream_comparison_not_run",
+        )
+        self.assertEqual(len(tests["completed_local_checks"]), 3)
+        self.assertEqual(len(tests["remaining_checks"]), 3)
         self.assertIn("All", tests["acceptance_rule"])
         for value in tests["mps_cpu_float32_tolerances"].values():
             self.assertGreater(value, 0.0)

@@ -1,7 +1,7 @@
 # UnlearnGuard: Privacy Leakage After Machine Unlearning
 
 **Project:** `UnlearnGuard-Privacy-Leakage-Research`  
-**Status:** The five-question baseline and paired 40-forget/40-retain pre-unlearning diagnostic are saved and audited. GradDiff training and official TOFU evaluation remain pending.
+**Status:** The five-question baseline and paired 40-forget/40-retain pre-unlearning diagnostic are saved and audited. A synthetic local GradDiff prototype is implemented and tested; GradDiff training and official TOFU evaluation remain pending.
 
 > **Research status:** No TOFU checkpoint has been fine-tuned or unlearned in this repository. The released TOFU-finetuned checkpoint has local five-question and paired 40/40 pre-unlearning diagnostics. Their JSON outputs remain ignored by Git; the paired artifact's audit metadata is recorded in the GradDiff plan. These are lightweight lexical diagnostics, not official TOFU Forget Quality or Model Utility evaluations. A tiny randomly initialized model is used only by the local environment smoke diagnostic.
 
@@ -60,6 +60,18 @@ This pipeline only reads the benchmark data. It does not load a model or perform
 
 The initial five-question result from [`src/evaluate_tofu_baseline.py`](src/evaluate_tofu_baseline.py) is recorded locally at the ignored path `results/tofu_forget01_baseline.json` and reviewed in [docs/baseline_findings.md](docs/baseline_findings.md). The local paired result at `results/tofu_forget01_retain99_baseline.json` contains all 40 `forget01` cases and a deterministic 40-question sample from `retain99`, with a frozen manifest in [`experiments/tofu_forget01_retain99_manifest.json`](experiments/tofu_forget01_retain99_manifest.json). The JSON result remains ignored and is not part of this commit. It does not include the optional paraphrase or `holdout01` generations. Both artifacts contain lightweight lexical diagnostics, not official TOFU Forget Quality or Model Utility scores. See [docs/paired_tofu_evaluation.md](docs/paired_tofu_evaluation.md) and [docs/graddiff_experiment_plan.md](docs/graddiff_experiment_plan.md) for audit details and plans.
 
+## Local GradDiff Prototype
+
+[`src/graddiff.py`](src/graddiff.py) implements the GradDiff scalar objective with mean causal next-token NLL computed separately for forget and retain batches. [`src/graddiff_train.py`](src/graddiff_train.py) provides an offline synthetic-only CLI. It selects MPS when available and CPU otherwise, records the selected device, rejects multi-process launch settings, and does not load a real model, checkpoint, or dataset.
+
+Run the synthetic dry run with PyTorch installed:
+
+```sh
+python -m src.graddiff_train --dry-run --device auto --steps 3
+```
+
+The unit tests cover loss normalization, coefficient and gradient signs, non-finite checks, a tiny AdamW update, device/process guards, and the CLI. CPU and MPS synthetic dry runs pass; a tiny-fixture CPU/MPS loss, gradient, and Torch AdamW update comparison also passes the proposed tolerances. The prototype validates synthetic objective behavior only. It is not yet ready for a real-model pilot: official-handler tensor comparisons, tokenizer and label-mask verification, data-sampler validation, and full-model memory checks remain outstanding. No TOFU GradDiff run or real unlearning has been performed. Details and limitations are in [the experiment plan](docs/graddiff_experiment_plan.md).
+
 ## Local ML Environment Smoke Test
 
 The project-local `.venv-ml` environment uses Python 3.11.18, PyTorch 2.9.1, and Transformers 4.57.1. It is separate from the existing TOFU-inspection `.venv` and is ignored by Git. The repeatable diagnostic runs a synthetic tensor operation and inference with a randomly initialized one-layer GPT-2 model; it downloads no checkpoint or dataset. Full pinned dependencies are in [requirements-ml.lock](requirements-ml.lock), with direct package pins in [requirements-ml.txt](requirements-ml.txt).
@@ -87,8 +99,8 @@ An interactive application is planned after the experiment pipeline is implement
 ├── docs/         # Dataset provenance, compute assessment, and baseline instructions
 ├── experiments/  # Frozen TOFU manifest and GradDiff experiment profiles
 ├── results/      # Tracked, metadata-only TOFU inspection summary
-├── src/          # Dataset inspection and lazy baseline evaluation code
-└── tests/        # Offline standard-library tests for inspection and baseline logic
+├── src/          # Dataset inspection, baseline evaluation, and synthetic GradDiff prototype
+└── tests/        # Offline tests for data validation, baseline logic, and synthetic GradDiff
 ```
 
 ## References

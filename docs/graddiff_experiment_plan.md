@@ -1,6 +1,6 @@
 # GradDiff experiment plan: TOFU forget01 / retain99
 
-**Status:** Configuration and offline validation prepared. No GradDiff training, fine-tuning, official model evaluation, cloud provisioning, or cloud charges have occurred.
+**Status:** Experiment plan prepared; a synthetic GradDiff prototype and its offline CPU/MPS checks are implemented. No TOFU GradDiff training, fine-tuning, official model evaluation, cloud provisioning, or cloud charges have occurred.
 
 ## Decision and experiment target
 
@@ -60,6 +60,30 @@ Use a separate Python 3.11 environment. The reviewed upstream requirements pin P
 
 The source review used live OpenUnlearning `main` links. An immutable upstream commit SHA was **not captured** in this preparation. Before any run, clone the source, record the exact commit, confirm the reviewed files, and archive the resolved Hydra config, dependency lock or container digest, dataset/model revisions, and evaluation-log revision. Do not execute against moving `main`.
 
+## Local synthetic GradDiff prototype
+
+The small local prototype lives in [`src/graddiff.py`](../src/graddiff.py) and [`src/graddiff_train.py`](../src/graddiff_train.py); its offline tests are in [`tests/test_graddiff.py`](../tests/test_graddiff.py). The CLI intentionally supports only the built-in synthetic fixture. It does not import Transformers, resolve Hugging Face assets, read TOFU files, or load a checkpoint.
+
+The loss helper implements causal next-token cross entropy by shifting logits and labels once, ignoring `-100` labels, and taking the mean over valid target tokens. It computes the forget and retain means independently, matching the usual Hugging Face causal-LM `.loss` reduction used by OpenUnlearning's handler, then returns `-gamma * forget_nll + alpha * retain_nll`. The optimizer minimizes this scalar, so the forget contribution is gradient ascent on forget NLL and the retain contribution is gradient descent on retain NLL. `gamma` and `alpha` are finite nonnegative coefficients, defaulting to the reviewed official values of 1.0.
+
+The trainer checks finite inputs and losses, parameter gradients, model parameters, and floating optimizer state. The built-in fixture uses two independent parameter rows so the expected directions are controlled: forget NLL increases, retain NLL decreases, and the minimized objective decreases after each AdamW step. Run it with:
+
+```sh
+python -m src.graddiff_train --dry-run --device auto --steps 3
+```
+
+`auto` selects MPS only when PyTorch reports that MPS is built and available in that process; otherwise it selects CPU. `--device mps` fails immediately if unavailable. There is no retry on CPU after an MPS execution error. The prototype rejects `WORLD_SIZE` other than 1 and has no distributed-training path. The report records the device actually selected, seed, losses, and that no checkpoint or external data was loaded.
+
+### Validation scope and deviations
+
+The automated tests check shifted-token mean reduction (including ignored targets), separate forget/retain means, the official coefficient signs, non-finite rejection, the synthetic AdamW update, device selection, single-process enforcement, and CLI behavior. CPU unit tests and dry runs pass. The MPS synthetic dry run also passes, and a tiny-fixture CPU/MPS comparison of scalar losses, gradients, and a Torch AdamW update passes the proposed FP32 tolerances. These checks establish local objective behavior and CPU/MPS consistency on a tiny fixture; they do not establish direct implementation equivalence against a pinned OpenUnlearning revision.
+
+This prototype is deliberately much smaller than OpenUnlearning. It does not implement the upstream trainer, Hugging Face model/tokenizer loading, TOFU chat formatting and label masks, padding and attention-mask behavior, batching/retain sampler, distributed sampler semantics, accumulation and scheduler, gradient checkpointing, bitsandbytes `paged_adamw_32bit`, or checkpoint/evaluation flow. It uses a tiny synthetic model and plain Torch AdamW (weight decay disabled in the isolated dry run). Thus the formula and the standard mean-NLL normalization are matched, but the training pipeline and optimizer trajectory are not scientifically equivalent to the upstream run.
+
+The Apple adaptation profile records the proposed full-model deviations from upstream: FP32 rather than BF16, PyTorch SDPA rather than FlashAttention 2, Torch AdamW rather than bitsandbytes paged AdamW, one MPS process rather than two CUDA processes with ZeRO-3, and microbatch 1 with 32-step accumulation. The proposed FP32 parameter/gradient/Adam-state floor is an arithmetic estimate, not a measured peak. MPS-specific full-model memory, throughput, determinism, and stability remain unknown. Any MPS runtime error is surfaced rather than hidden by a device fallback.
+
+The following are still required before a limited real-model pilot: pin the exact OpenUnlearning commit; compare official and local losses, every parameter gradient, and one update on the same tiny causal model and fixed inputs; verify actual tokenizer, prompt template, target masking, padding, batching, and data sampling; then do a memory-only model load and one explicitly bounded training step with rollback to the untouched starting checkpoint. Do not interpret success on the synthetic fixture as evidence that a 1.2B model fits or that TOFU unlearning has occurred. The current prototype is **not yet ready for a limited real-model experiment** because those official-pipeline compatibility checks remain incomplete.
+
 The official [TOFU evaluation config](https://github.com/locuslab/open-unlearning/blob/main/configs/eval/tofu.yaml) enables Truth Ratio, Forget Quality, forget QA probability and ROUGE, Model Utility, privacy leakage, and extraction-strength metrics. Truth Ratio compares normalized likelihood of the paraphrased correct answer with structurally similar perturbed answers; Forget Quality is the KS-test p-value comparing forget-side Truth Ratio distributions with the retain-only reference; Model Utility aggregates the official retain, Real Authors, and World Facts evaluations. Forget Quality requires matching retain-only evaluation logs; use official OpenUnlearning logs only after verifying provenance, or recompute using the pinned retain99 checkpoint and evaluator. The upstream README documents `python setup_data.py --eval` for obtaining evaluation logs. The saved lexical baseline is not a substitute.
 
 OpenUnlearning documents that evaluation during unlearning is supported only for one accelerator process; for the distributed run, save checkpoints and evaluate after training. Save each epoch's model weights and score epochs 0, 1, 5, and 10 after training. Epoch 10 is primary; earlier scores are a trajectory, not a selection mechanism. Keep holdout results sealed until the fixed primary result is set. Keep the initial checkpoint and historical baseline untouched. Model-only checkpoints support evaluation and rollback to a valid weight snapshot but cannot resume the exact optimizer trajectory.
@@ -72,7 +96,7 @@ PyTorch supports GPU training through [MPS on Apple Silicon](https://docs.pytorc
 
 The local weight file is 2,471,645,608 bytes. A rough training-state floor is about 15 GB for roughly 1.2B BF16 parameters, gradients, and two FP32 Adam moments, before activations, temporary buffers, and macOS. The MPS FP32 adaptation has a rough 19.2 GB state floor under the same parameter-count assumption, before activations. These are arithmetic estimates, not peak-memory measurements. Full-model MPS memory, runtime, and stability on this Mac remain unverified. Ten model-only checkpoints are estimated at about 25 GB from the observed file size; 40 GB persistent disk is budgeted for checkpoints, logs, and caches. That is a planning allowance, not a measured output size.
 
-Before any MPS pilot, compare the official and adapted scalar forget/retain/combined losses, parameter gradients, and optimizer updates on a tiny fixed-weight model. Compare MPS FP32 to CPU FP32 at the tolerances in the MPS config; compare paged AdamW to Torch AdamW in a CUDA preflight with identical gradient sequences. Also verify tokenization, target-label masking, padding, per-token reduction, retain sampling, and effective-batch aggregation. Passing tests on a tiny fixture would establish only objective/update agreement there, not full-model fit, speed, deterministic kernels, or CUDA benchmark equivalence. No such equivalence test has run.
+The local tests establish the objective formula, mean-loss normalization, gradient contribution signs, and controlled Torch AdamW behavior on a tiny synthetic model. The tiny-fixture CPU-versus-MPS loss, gradient, and Torch AdamW update comparison passes its proposed tolerances. The direct comparison with the official handler, paged-optimizer comparison, tokenizer/label-mask check, retain-sampling check, and effective-batch comparison have not run. Passing those checks on a tiny fixture would establish only objective/update agreement there, not full-model fit, speed, deterministic kernels, or CUDA benchmark equivalence.
 
 ## Commands reserved for a later approved execution
 
