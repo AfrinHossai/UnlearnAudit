@@ -1,9 +1,9 @@
 # UnlearnGuard: Privacy Leakage After Machine Unlearning
 
 **Project:** `UnlearnGuard-Privacy-Leakage-Research`  
-**Status:** The first five-question pre-unlearning TOFU baseline has been recorded and audited. A larger paired forget/retain evaluation is prepared but has not been run; unlearning remains pending.
+**Status:** The five-question baseline and paired 40-forget/40-retain pre-unlearning diagnostic are saved and audited. GradDiff training and official TOFU evaluation remain pending.
 
-> **Research status:** No TOFU checkpoint has been fine-tuned or unlearned in this repository. The released TOFU-finetuned checkpoint has a local, ignored five-question pre-unlearning result; it is a lightweight diagnostic, not an official TOFU Forget Quality or Model Utility evaluation. A tiny randomly initialized model is used only by the local environment smoke diagnostic.
+> **Research status:** No TOFU checkpoint has been fine-tuned or unlearned in this repository. The released TOFU-finetuned checkpoint has local five-question and paired 40/40 pre-unlearning diagnostics. Their JSON outputs remain ignored by Git; the paired artifact's audit metadata is recorded in the GradDiff plan. These are lightweight lexical diagnostics, not official TOFU Forget Quality or Model Utility evaluations. A tiny randomly initialized model is used only by the local environment smoke diagnostic.
 
 ## Motivation
 
@@ -13,21 +13,21 @@ This project is planned as a reproducible study of that privacy-utility trade-of
 
 ## Objective
 
-Evaluate whether one established unlearning method—**gradient ascent (GA) on the forget set**—reduces the recoverability of TOFU target answers, and measure the effect on retained knowledge. GA is selected as a well-described baseline used in prior LLM unlearning work; it is not presented here as a recommended or privacy-guaranteeing method. [Yao et al., *Machine Unlearning of Pre-trained Large Language Models*](https://aclanthology.org/2024.acl-long.457/).
+Evaluate whether **GradDiff**, which combines gradient ascent on the forget set with a retain-set negative-log-likelihood term, changes recovery of TOFU target answers while preserving retained utility. The planned defaults follow the [official OpenUnlearning GradDiff implementation and configuration](https://github.com/locuslab/open-unlearning/blob/main/configs/trainer/GradDiff.yaml); GradDiff is not presented as a privacy guarantee.
 
 The planned study will address:
 
-1. How does GA change target-answer recovery on TOFU forget-set questions?
+1. How does GradDiff change target-answer recovery on TOFU forget-set questions?
 2. Do the results hold for a fixed set of paraphrased or reformulated prompts?
 3. What changes in forgetting coincide with changes in utility on TOFU retain and related evaluation sets?
 
 ## Planned Methodology
 
-Every item in this section is **planned work**. No TOFU model has been trained or unlearned in this repository. The local five-question result and prepared paired baseline are diagnostics; official benchmark evaluation remains pending.
+Every item in this section is **planned work**. No TOFU model has been trained or unlearned in this repository. The saved five-question and paired forget/retain results are lexical diagnostics; official benchmark evaluation remains pending.
 
 1. **Pin the benchmark and model.** Use the TOFU data and its designated forget/retain protocol. Before running experiments, select and record a compatible TOFU-finetuned checkpoint and immutable dataset/model revisions. Publish configuration files, data provenance, and checksums where licensing permits.
-2. **Run one unlearning technique.** Apply gradient ascent to the forget examples using a documented optimizer, learning rate, batch size, number of steps, and random seed. Keep the method fixed across comparisons; record each configuration and checkpoint identifier.
-3. **Compare reference models.** Evaluate the pre-unlearning checkpoint, the GA-unlearned checkpoint, and—where feasible under the compute budget—a retain-only reference trained without the forget set. The retain-only model provides a useful benchmark for the TOFU forget-quality comparison.
+2. **Run one unlearning technique.** Apply GradDiff to the forget examples while retaining the official retain-set NLL term. Use a documented optimizer, learning rate, batch size, epoch count, and random seed. Keep the method fixed across comparisons; record each configuration and checkpoint identifier.
+3. **Compare reference models.** Evaluate the pre-unlearning checkpoint, the GradDiff checkpoint, and the released retain-only reference trained without the forget set. The retain-only model provides the reference logs needed for the TOFU Forget Quality comparison.
 4. **Evaluate target leakage and utility.** Use TOFU's published evaluation protocol, including truth-ratio distributions on the forget set and utility measurements on retain and related sets. Add a versioned, fixed set of direct and paraphrased prompts. A planned targeted-answer recovery rate will count generated answers matching normalized target answers or a published alias list; the matching rules and any manual review procedure will be specified before evaluation.
 5. **Make runs reproducible.** Fix decoding settings and prompt templates. Record software versions, hardware, seeds, model and dataset revisions, training configuration, and evaluation outputs. Keep raw generated answers separate from aggregate metrics, and document any excluded or failed runs.
 6. **Report limitations.** Interpret benchmark metrics as evidence about behavior on TOFU, not proof that information has been erased from model weights or is unrecoverable in other settings. TOFU uses synthetic profiles, so results will not establish privacy protection for real personal data.
@@ -50,7 +50,7 @@ python -m src.inspect_tofu
 
 The `requirements.txt` file documents that the pipeline and tests use only the Python standard library. On the first inspection, the script downloads the pinned `forget01.json` file into `.cache/tofu/` and verifies its SHA-256 digest before loading it. The cache, virtual environment, and dataset files are excluded from Git. The summary records schema and validation metadata without copying question or answer text. See [docs/data.md](docs/data.md) for dataset provenance, attribution, and the limits of this inspection.
 
-See [docs/compute_feasibility.md](docs/compute_feasibility.md) for the verified local ML environment, MPS sandbox diagnosis, OpenUnlearning compatibility, and a recommended next experiment.
+See [docs/compute_feasibility.md](docs/compute_feasibility.md) for the verified local ML environment and hardware assessment. See [docs/graddiff_experiment_plan.md](docs/graddiff_experiment_plan.md) for the baseline audit, GradDiff source review, experiment profiles, evaluation leakage controls, and execution recommendation.
 
 See [docs/tofu_baseline.md](docs/tofu_baseline.md) for the initial five-question configuration and [docs/paired_tofu_evaluation.md](docs/paired_tofu_evaluation.md) for the frozen forget/retain manifest, official-metric plan, and exact command for the expanded evaluation.
 
@@ -58,7 +58,7 @@ This pipeline only reads the benchmark data. It does not load a model or perform
 
 ## TOFU Pre-Unlearning Evaluations
 
-The initial five-question result from [`src/evaluate_tofu_baseline.py`](src/evaluate_tofu_baseline.py) is recorded locally at the ignored path `results/tofu_forget01_baseline.json` and reviewed in [docs/baseline_findings.md](docs/baseline_findings.md). The new [`src/evaluate_tofu_paired.py`](src/evaluate_tofu_paired.py) prepares a frozen manifest for all 40 `forget01` questions, a deterministic 40-question sample from `retain99`, and optional official paraphrase and `holdout01` diagnostics. Its manifest and expanded run instructions are in [docs/paired_tofu_evaluation.md](docs/paired_tofu_evaluation.md). The paired evaluation has not yet run; neither evaluator's lightweight lexical metrics are official TOFU Forget Quality or Model Utility scores.
+The initial five-question result from [`src/evaluate_tofu_baseline.py`](src/evaluate_tofu_baseline.py) is recorded locally at the ignored path `results/tofu_forget01_baseline.json` and reviewed in [docs/baseline_findings.md](docs/baseline_findings.md). The local paired result at `results/tofu_forget01_retain99_baseline.json` contains all 40 `forget01` cases and a deterministic 40-question sample from `retain99`, with a frozen manifest in [`experiments/tofu_forget01_retain99_manifest.json`](experiments/tofu_forget01_retain99_manifest.json). The JSON result remains ignored and is not part of this commit. It does not include the optional paraphrase or `holdout01` generations. Both artifacts contain lightweight lexical diagnostics, not official TOFU Forget Quality or Model Utility scores. See [docs/paired_tofu_evaluation.md](docs/paired_tofu_evaluation.md) and [docs/graddiff_experiment_plan.md](docs/graddiff_experiment_plan.md) for audit details and plans.
 
 ## Local ML Environment Smoke Test
 
@@ -75,7 +75,7 @@ On this Mac, the diagnostic used MPS successfully when run in a normal process o
 
 ## Future Interactive Demo
 
-An interactive application is planned after the experiment pipeline is implemented. It is intended to let a user inspect the fixed evaluation prompts, compare pre-unlearning and GA-unlearned responses, and explore target-answer recovery and utility metrics across the forget and retain sets. The interface should expose model, dataset, and run configuration so that displayed comparisons can be traced to saved experiment artifacts.
+An interactive application is planned after the experiment pipeline is implemented. It is intended to let a user inspect the fixed evaluation prompts, compare pre-unlearning and GradDiff-unlearned responses, and explore target-answer recovery and utility metrics across the forget and retain sets. The interface should expose model, dataset, and run configuration so that displayed comparisons can be traced to saved experiment artifacts.
 
 **The demo has not been built.** No model outputs or experimental performance results are included. The tracked TOFU inspection summary contains dataset metadata only.
 
@@ -85,7 +85,7 @@ An interactive application is planned after the experiment pipeline is implement
 .
 ├── app/          # Planned interactive demo
 ├── docs/         # Dataset provenance, compute assessment, and baseline instructions
-├── experiments/  # Planned run configurations and experiment records
+├── experiments/  # Frozen TOFU manifest and GradDiff experiment profiles
 ├── results/      # Tracked, metadata-only TOFU inspection summary
 ├── src/          # Dataset inspection and lazy baseline evaluation code
 └── tests/        # Offline standard-library tests for inspection and baseline logic
@@ -94,4 +94,4 @@ An interactive application is planned after the experiment pipeline is implement
 ## References
 
 - Maini, P., Feng, Z., Schwarzschild, A., Lipton, Z. C., & Kolter, J. Z. (2024). [TOFU: A Task of Fictitious Unlearning for LLMs](https://arxiv.org/abs/2401.06121).
-- Yao, Y., et al. (2024). [Machine Unlearning of Pre-trained Large Language Models](https://aclanthology.org/2024.acl-long.457/).
+- [OpenUnlearning GradDiff implementation](https://github.com/locuslab/open-unlearning/blob/main/src/trainer/unlearn/grad_diff.py) and [TOFU reproduction settings](https://github.com/locuslab/open-unlearning/blob/main/docs/repro.md).

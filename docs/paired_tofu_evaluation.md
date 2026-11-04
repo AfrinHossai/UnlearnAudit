@@ -2,11 +2,13 @@
 
 ## Status and scope
 
-The paired evaluation is **prepared but not run**. This work verified official
-TOFU data files and created a frozen case manifest; it did not load model
-weights, run model inference, fine-tune, unlearn, or compute official TOFU
-scores. The historical five-question output at
-`results/tofu_forget01_baseline.json` was left unchanged.
+The paired pre-unlearning evaluation is **complete and audited**. Its saved
+result contains all 40 direct-question `forget01` cases and the deterministic
+40-case `retain99` sample. The baseline audit verified model and data
+revisions, local data checksums, manifest hash, selected record hashes, saved
+responses, and lexical diagnostic metadata. It did not compute official TOFU
+scores or run fine-tuning or unlearning. The five-question and paired baseline
+artifacts were left unchanged during the GradDiff preparation.
 
 The new evaluator is
 [`src/evaluate_tofu_paired.py`](../src/evaluate_tofu_paired.py). Its checked-in
@@ -117,10 +119,12 @@ answers, but it cannot replace these official evaluations.
 
 ## Commands
 
-The manifest is already prepared. If a required dataset file is missing, the
-paired command can fetch only the official, checksum-pinned JSON data into the
-ignored `.cache/tofu/` directory with `--download-missing-data`. Model weights
-are loaded only when the `paired` command is run.
+The manifest and historical paired result are already prepared. If a required
+dataset file is missing, the paired command can fetch only the official,
+checksum-pinned JSON data into the ignored `.cache/tofu/` directory with
+`--download-missing-data`. Model weights are loaded only when the `paired`
+command is run. Reproductions must write to a new output path rather than
+overwrite `results/tofu_forget01_retain99_baseline.json`.
 
 From a normal macOS Terminal process outside the Codex sandbox, run the
 expanded direct-question forget/retain baseline from the repository root with
@@ -131,14 +135,14 @@ env -u CONDA_PREFIX -u CONDA_DEFAULT_ENV -u PYTHONHOME -u PYTHONPATH \
   ./.venv-ml/bin/python -m src.evaluate_tofu_paired paired \
   --manifest experiments/tofu_forget01_retain99_manifest.json \
   --download-missing-data \
-  --output results/tofu_forget01_retain99_baseline.json
+  --output results/tofu_forget01_retain99_baseline_reproduction.json
 ```
 
 To also run the optional official paraphrase-prompt and `holdout01` generated
 answer diagnostics, add `--include-paraphrase --include-holdout` to that
-command. The baseline output path is separate from the historical
-five-question result. For a later paired post-unlearning diagnostic, reuse the
-same manifest and specify the unlearned model ID/path and its recorded
+command. The reproduction output path is separate from the historical paired
+and five-question results. For a later paired post-unlearning diagnostic, reuse
+the same manifest and specify the unlearned model ID/path and its recorded
 revision/immutable checkpoint label, plus a new output path.
 
 The new unit tests run offline and do not import Transformers or load a model:

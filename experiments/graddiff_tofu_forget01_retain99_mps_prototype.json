@@ -1,0 +1,72 @@
+{
+  "schema_version": "1.0",
+  "experiment_id": "tofu_forget01_retain99_llama32_1b_graddiff_mps_prototype",
+  "status": "validation_design_only_not_authorized_for_training",
+  "primary_profile": "experiments/graddiff_tofu_forget01_retain99.json",
+  "purpose": "Document a possible local Apple Silicon port and its acceptance tests. This profile is not the recommended scientific run and has not been executed.",
+  "device": {
+    "backend": "mps",
+    "host": "Apple M4 Pro, 48 GB unified memory",
+    "availability_evidence": "Existing tiny-model and tensor diagnostics report MPS available in a normal Terminal process; the restricted command sandbox cannot access Metal. Full-model training has not been tested.",
+    "estimated_parameter_storage_floor_bytes": 19200000000,
+    "estimate_basis": "Approximately 1.2 billion parameters at 4 bytes each for FP32 weights, 4 bytes for gradients, and 8 bytes for two FP32 Adam moments; excludes activations, temporary buffers, allocator overhead, and macOS memory.",
+    "memory_estimate_is_measurement": false
+  },
+  "method": {
+    "handler": "GradDiff",
+    "loss_expression": "gamma * (-NLL(forget)) + alpha * NLL(retain)",
+    "gamma": 1.0,
+    "alpha": 1.0,
+    "retain_loss_type": "NLL",
+    "mathematical_objective_matches_primary_profile": true
+  },
+  "training_adaptations": {
+    "model_precision": "float32",
+    "attention_implementation": "sdpa",
+    "optimizer": "adamw_torch",
+    "distributed_launcher": "single-process Python; no Accelerate multi-GPU or DeepSpeed ZeRO-3",
+    "per_device_train_batch_size": 1,
+    "gradient_accumulation_steps": 32,
+    "num_processes": 1,
+    "effective_batch_size": 32,
+    "gradient_checkpointing": true,
+    "learning_rate": 0.00001,
+    "num_train_epochs": 10,
+    "warmup_epochs": 1.0,
+    "weight_decay": 0.01,
+    "seed": 2026,
+    "data_seed": 2026,
+    "deviations_from_upstream": [
+      "FP32 in place of upstream BF16.",
+      "PyTorch SDPA in place of flash_attention_2.",
+      "torch AdamW in place of bitsandbytes paged_adamw_32bit; the paged optimizer is not part of the current Apple Metal support matrix.",
+      "One MPS process in place of two CUDA processes and DeepSpeed ZeRO-3.",
+      "Microbatch 1 with accumulation 32 to preserve a nominal global batch of 32; order, sampler behavior, kernel numerics, and throughput will still differ from distributed CUDA."
+    ]
+  },
+  "mathematical_equivalence_acceptance_tests": {
+    "status": "planned_not_run",
+    "reference": "Pinned OpenUnlearning GradDiff implementation with fixed token IDs, attention masks, labels, and the same tiny causal model weights.",
+    "tests": [
+      "Compare forget NLL, retain NLL, combined GradDiff scalar loss, and all parameter gradients between the official expression and the MPS adapter on a tiny model.",
+      "Compare one and multiple optimizer updates from identical initial weights and fixed gradients; compare paged AdamW32bit versus torch AdamW in a CUDA preflight, then compare MPS torch AdamW versus CPU torch AdamW.",
+      "Verify the same chat template, label masking, padding masks, per-token reduction, retain sampling distribution, and effective batch aggregation before any model-sized run."
+    ],
+    "mps_cpu_float32_tolerances": {
+      "loss_atol": 0.00001,
+      "loss_rtol": 0.0001,
+      "gradient_atol": 0.00001,
+      "gradient_rtol": 0.0001,
+      "optimizer_parameter_atol": 0.00001,
+      "optimizer_parameter_rtol": 0.0001
+    },
+    "acceptance_rule": "All fixed-batch loss, gradient, and update comparisons must pass before considering a full-model MPS pilot. Passing small-model tests establishes objective/update agreement only; it does not establish full-model fit, runtime, deterministic kernels, or benchmark equivalence.",
+    "execution_status": "No code for these equivalence checks has been run in this task."
+  },
+  "resource_and_claim_limits": {
+    "full_model_peak_memory": "unknown; no full-model MPS training measurement exists",
+    "full_model_runtime": "unknown; no benchmark measurement exists",
+    "recommended_for_primary_experiment": false,
+    "cloud_gpu_charges_authorized": false
+  }
+}

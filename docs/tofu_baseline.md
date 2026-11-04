@@ -2,8 +2,9 @@
 
 **Status:** The initial five-question pre-unlearning run was recorded locally
 and audited in [baseline findings](baseline_findings.md). Its JSON output is
-ignored by Git. The expanded paired forget/retain evaluation is prepared but
-has not been run; see [paired evaluation instructions](paired_tofu_evaluation.md).
+ignored by Git. The paired 40-forget/40-retain pre-unlearning diagnostic has
+also been run and audited; its JSON output is likewise ignored by Git. See
+[paired evaluation instructions](paired_tofu_evaluation.md).
 This document preserves the original five-question model and data setup.
 
 ## Model and provenance

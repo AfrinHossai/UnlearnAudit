@@ -1,0 +1,188 @@
+{
+  "schema_version": "1.0",
+  "experiment_id": "tofu_forget01_retain99_llama32_1b_graddiff",
+  "status": "prepared_not_executed",
+  "scope": "Primary CUDA reproduction profile for OpenUnlearning GradDiff; this file is a local experiment specification, not a directly loadable Hydra config.",
+  "upstream": {
+    "repository": "https://github.com/locuslab/open-unlearning",
+    "reviewed_ref": "main",
+    "review_date": "2026-11-03",
+    "commit_sha": null,
+    "freeze_before_execution": "Clone the repository, record git rev-parse HEAD, confirm the referenced GradDiff, trainer, data, model, and evaluator files still match this review, and archive the resolved config and dependency lock. Do not execute from a moving main branch.",
+    "implementation_path": "src/trainer/unlearn/grad_diff.py",
+    "method_config_path": "configs/trainer/GradDiff.yaml",
+    "experiment_config_path": "configs/experiment/unlearn/tofu/default.yaml",
+    "training_config_path": "configs/trainer/finetune.yaml",
+    "evaluation_config_path": "configs/eval/tofu.yaml",
+    "references": {
+      "implementation": "https://raw.githubusercontent.com/locuslab/open-unlearning/main/src/trainer/unlearn/grad_diff.py",
+      "method_config": "https://raw.githubusercontent.com/locuslab/open-unlearning/main/configs/trainer/GradDiff.yaml",
+      "training_config": "https://raw.githubusercontent.com/locuslab/open-unlearning/main/configs/trainer/finetune.yaml",
+      "tofu_script": "https://raw.githubusercontent.com/locuslab/open-unlearning/main/scripts/tofu_unlearn.sh",
+      "evaluation_config": "https://raw.githubusercontent.com/locuslab/open-unlearning/main/configs/eval/tofu.yaml"
+    }
+  },
+  "method": {
+    "handler": "GradDiff",
+    "loss_expression": "gamma * (-NLL(forget)) + alpha * NLL(retain)",
+    "gamma": 1.0,
+    "alpha": 1.0,
+    "retain_loss_type": "NLL",
+    "reference_behavior": "With NLL retain loss, GradDiff does not instantiate a separate reference model. A retain-only model's evaluation logs are still required by OpenUnlearning's Forget Quality metric."
+  },
+  "models": {
+    "initial_checkpoint": {
+      "repo_id": "open-unlearning/tofu_Llama-3.2-1B-Instruct_full",
+      "revision": "88e31200b97e4c0c04ae0d2f0b591f427046d192",
+      "purpose": "TOFU-finetuned starting model targeted by the unlearning run",
+      "local_snapshot_expected": ".cache/huggingface/models--open-unlearning--tofu_Llama-3.2-1B-Instruct_full/snapshots/88e31200b97e4c0c04ae0d2f0b591f427046d192",
+      "observed_model_file_bytes": 2471645608
+    },
+    "retain_only_reference": {
+      "repo_id": "open-unlearning/tofu_Llama-3.2-1B-Instruct_retain99",
+      "revision": "64a2028a51b386a06898464142df1d89749fdab3",
+      "purpose": "Retain-only reference for Forget Quality and retained-utility interpretation; its checkpoint weights are not currently cached locally.",
+      "evaluation_logs_path": "saves/eval/tofu_Llama-3.2-1B-Instruct_retain99/TOFU_EVAL.json",
+      "evaluation_logs_source": "Use logs from the pinned OpenUnlearning eval dataset only after validating their model, evaluator, tokenizer, data, and split provenance; otherwise generate logs from this pinned retain99 checkpoint."
+    }
+  },
+  "dataset": {
+    "repo_id": "locuslab/TOFU",
+    "revision": "324592d84ae4f482ac7249b9285c2ecdb53e3a68",
+    "training": {
+      "forget": {
+        "split": "forget01",
+        "partition": "train",
+        "record_count": 40,
+        "sha256": "d0047332bd27a489c552659831f4ffff080e2b9b6e063c7c951ac4de9d494a63"
+      },
+      "retain": {
+        "split": "retain99",
+        "partition": "train",
+        "record_count": 3960,
+        "sha256": "e699ae5fe685996cd7d0a60cbcbeae717e989a2fd0caf00b4d545ba39ccefc61"
+      },
+      "anchor": "forget",
+      "max_sequence_length": 512,
+      "sampling_semantics": "OpenUnlearning ForgetRetainDataset has the forget-set length when anchor=forget. Each forget row is visited once per epoch; a retain row is sampled uniformly with replacement for each forget row. The 3960 retain rows are not all traversed in an epoch."
+    },
+    "evaluation": {
+      "forget01_perturbed": {
+        "record_count": 40,
+        "sha256": "d8d8a80bd25e853b52fad0e3301d86fa4db6bc2b665cd79ea937346186a0944a",
+        "role": "unseen paraphrase prompt and perturbed-answer evaluation for the same forget facts; not independent facts"
+      },
+      "holdout01": {
+        "record_count": 40,
+        "sha256": "4de5388d2e5927eab81f3d9fb491439b7c63359002452cfd3177a6c0977c08b5",
+        "role": "evaluation-only split; no normalized question overlap with forget01 or retain99 was observed"
+      },
+      "retain99_diagnostic_sample": {
+        "record_count": 40,
+        "selection": "Use the exact retained cases in experiments/tofu_forget01_retain99_manifest.json; SHA-256 rank seed:index with seed 2026."
+      }
+    }
+  },
+  "dependencies_reviewed_from_upstream_requirements": {
+    "python": "3.11 (upstream quickstart environment)",
+    "requirements_txt_pins": {
+      "huggingface-hub": "1.7.2",
+      "transformers": "5.5.4",
+      "hf-xet": "1.4.2",
+      "numpy": "2.2.3",
+      "hydra-core": "1.3",
+      "hydra_colorlog": "1.2.0",
+      "torch": "2.9.1",
+      "datasets": "3.0.1",
+      "accelerate": "1.13.0",
+      "bitsandbytes": "0.49.2",
+      "rouge-score": "0.1.2",
+      "scipy": "1.14.1",
+      "tensorboard": "2.18.0",
+      "scikit-learn": "1.5.2",
+      "deepspeed": "0.15.4",
+      "wandb": "0.21.4",
+      "flash-linear-attention": "0.4.2 (upstream requirements note says this is for Qwen3.5 speedup; not used by this Llama experiment)"
+    },
+    "flash-attn": "2.8.3 (separate CUDA/Linux install in upstream quickstart; example wheel targets CUDA 12.8, Linux x86_64, CPython 3.11)",
+    "local_environment_mismatch": "The existing .venv-ml uses Transformers 4.57.1 and is an inference smoke environment, not a compatible OpenUnlearning training environment."
+  },
+  "training": {
+    "seed": 2026,
+    "data_seed": 2026,
+    "num_train_epochs": 10,
+    "learning_rate": 0.00001,
+    "warmup_epochs": 1.0,
+    "weight_decay": 0.01,
+    "per_device_train_batch_size": 4,
+    "gradient_accumulation_steps": 4,
+    "num_processes": 2,
+    "effective_global_batch_size": 32,
+    "optimizer": "paged_adamw_32bit",
+    "precision": "bfloat16",
+    "attention_implementation": "flash_attention_2",
+    "gradient_checkpointing": true,
+    "ddp_find_unused_parameters": true,
+    "logging_steps": 5,
+    "do_eval_during_distributed_training": false,
+    "save_strategy": "epoch",
+    "save_only_model": true,
+    "save_total_limit": 11,
+    "checkpoint_policy": "Keep the untouched starting checkpoint and all ten epoch model checkpoints. The epoch-10 checkpoint is the preregistered primary result. Save model-only checkpoints to support evaluation and rollback; this does not preserve optimizer state for exact mid-run resumption."
+  },
+  "historical_baseline_audit": {
+    "path": "results/tofu_forget01_retain99_baseline.json",
+    "tracked_in_git": false,
+    "artifact_sha256": "1473f6abc0c42164ee55dcf27328ab0b72c9e86e12c15764b71800e7462e8a0e",
+    "manifest_canonical_sha256": "6fa4af8b1b71809593443e38c2a388edcd2faef4e5db1f2bca154bca19ccee49",
+    "saved_case_counts": {
+      "forget01": 40,
+      "retain99": 40
+    },
+    "official_metrics": {
+      "truth_ratio": "not_computed",
+      "forget_quality": "not_computed",
+      "model_utility": "not_computed"
+    },
+    "handling": "Audit metadata is recorded here and in the experiment plan. The original ignored JSON result is left untouched and is not copied into this commit."
+  },
+  "evaluation_protocol": {
+    "official_evaluator": "OpenUnlearning configs/experiment/eval/tofu/default.yaml with forget_split=forget01, holdout_split=holdout01, the pinned model/tokenizer, and validated retain99 logs.",
+    "official_metrics_to_report": [
+      "forget_Truth_Ratio",
+      "forget_quality (KS comparison against retain-only reference logs)",
+      "forget_Q_A_Prob",
+      "forget_Q_A_ROUGE",
+      "model_utility",
+      "privleak",
+      "extraction_strength",
+      "retain_extraction_strength"
+    ],
+    "paired_diagnostics": "Reuse the checked-in manifest and baseline settings for comparable greedy generations. Keep these lexical scores labelled as diagnostics, not official TOFU metrics.",
+    "checkpoints_to_score": [0, 1, 5, 10],
+    "primary_checkpoint_epoch": 10,
+    "selection_rule": "Epoch 10 is fixed before training. Report earlier checkpoint metrics as a trajectory; do not select an epoch or tune hyperparameters using forget01, forget01_perturbed, or holdout01 results.",
+    "holdout_access": "Keep holdout01 scores sealed until the epoch-10 result is fixed; holdout01 is not a tuning or stopping set.",
+    "independent_paraphrase_test": "Before training, have two human annotators independently write one meaning-preserving paraphrase per forget question without seeing model outputs. Resolve disagreements before unlearning, freeze prompt and answer files with hashes, and use this set only for the final report. These prompts test wording robustness for the same facts, not generalization to new facts.",
+    "retained_utility_control": {
+      "official_utility_minimum_delta_vs_initial_full": -0.05,
+      "delta_unit": "absolute points on the [0,1] official Model Utility aggregate",
+      "interpretation": "Project preregistered non-inferiority guardrail, not an OpenUnlearning benchmark threshold.",
+      "additional_checks": [
+        "Report per-component utility on retain99, Real Authors, and World Facts where available.",
+        "Compare the exact 40-case retain99 diagnostic F1 with the untouched paired baseline.",
+        "Report holdout01 results separately; do not treat lexical accuracy as official Model Utility."
+      ]
+    },
+    "rollback": "Never overwrite the starting checkpoint or historical baseline. If the final checkpoint is corrupt, non-finite, or fails the preregistered retained-utility gate, reject it and keep the untouched starting checkpoint as the accepted state. Preserve all epoch checkpoints and logs for audit; a model-only checkpoint cannot resume the exact optimizer trajectory."
+  },
+  "resource_plan": {
+    "recommended_platform": "Linux x86_64 with 2 NVIDIA L40S GPUs, 48 GB VRAM each, CUDA, Accelerate, and DeepSpeed ZeRO-3",
+    "basis": "This matches the hardware and distributed strategy reported in OpenUnlearning reproduction notes and the concrete two-GPU TOFU script profile.",
+    "initial_model_file_bytes": 2471645608,
+    "estimated_ten_model_checkpoint_bytes": 24716456080,
+    "recommended_free_persistent_disk_gb": 40,
+    "disk_estimate_note": "Checkpoint storage is estimated from the observed local 2,471,645,608-byte model file times ten saved epochs, before logs, caches, and runtime files. The 40 GB allowance is a planning margin, not a measured run size.",
+    "paid_cloud_gpu": "Recommended for the official-faithful run on the currently inventoried host, which has MPS but no CUDA device. A paid cloud instance is not mathematically required if an equivalent Linux CUDA system is already available. No instance has been selected, started, or charged."
+  }
+}

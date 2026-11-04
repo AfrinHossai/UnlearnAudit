@@ -1,7 +1,7 @@
 # Machine-unlearning compute feasibility
 
 **Assessment date:** 2026-11-03
-**Scope:** Inspection of this Mac and OpenUnlearning, a separate project-local environment for a no-checkpoint inference smoke test, and preparation of an offline-tested TOFU evaluator. The five-question baseline was generated later and is documented in [baseline findings](baseline_findings.md). The paired 01/99 manifest is now prepared but has not been evaluated. This task did not download model weights, run model inference, or perform unlearning.
+**Scope:** Inspection of this Mac and OpenUnlearning, a separate project-local environment for a no-checkpoint inference smoke test, and preparation of offline-tested TOFU evaluators. The five-question and paired 01/99 pre-unlearning diagnostics are saved and documented in [baseline findings](baseline_findings.md) and [paired TOFU evaluation](paired_tofu_evaluation.md). This assessment did not download new model weights, fine-tune, or perform unlearning.
 
 ## Decision
 
@@ -82,27 +82,18 @@ The memory figures above are planning estimates, not measurements from this Mac.
 
 ## Local baseline evaluation status
 
-The repository contains an offline-testable evaluator for the initial five-question run and a paired evaluator for all 40 pinned `forget01` questions plus a deterministic 40-question sample from `retain99`. The initial run uses OpenUnlearning's official `open-unlearning/tofu_Llama-3.2-1B-Instruct_full` checkpoint at immutable revision `88e31200b97e4c0c04ae0d2f0b591f427046d192`. The paired case manifest and exact command are documented in [paired TOFU evaluation](paired_tofu_evaluation.md). The paired evaluation has not run.
+The repository contains offline-testable evaluators for the initial five-question result and a paired diagnostic with all 40 pinned `forget01` questions plus a deterministic 40-question sample from `retain99`. The starting checkpoint is OpenUnlearning's `open-unlearning/tofu_Llama-3.2-1B-Instruct_full` at immutable revision `88e31200b97e4c0c04ae0d2f0b591f427046d192`. The paired case manifest and saved result are audited in [paired TOFU evaluation](paired_tofu_evaluation.md).
 
-The evaluator loads the bundled tokenizer from the same checkpoint revision (not the separately hosted `meta-llama` tokenizer), applies its chat template with OpenUnlearning's fixed system prompt/date, and uses greedy generation. On MPS it casts the BF16 checkpoint to FP16; on CPU it casts to FP32. The weight file itself is about 2.47 GB; FP32 model weights require roughly twice the FP16/BF16 storage, with additional memory for model loading, activations, and KV cache. The Mac's 48 GB unified memory should leave room for a small inference sample, but exact peak memory on this checkpoint has not been measured. The initial five-question baseline was run, but the paired 80-question direct-QA diagnostic has not. Neither result computes the official TOFU truth-ratio, Forget Quality, or Model Utility protocol.
+The evaluator loads the bundled tokenizer from the same checkpoint revision (not the separately hosted `meta-llama` tokenizer), applies its chat template with OpenUnlearning's fixed system prompt/date, and uses greedy generation. On MPS it casts the BF16 checkpoint to FP16; on CPU it casts to FP32. The weight file itself is about 2.47 GB; FP32 model weights require roughly twice the FP16/BF16 storage, with additional memory for model loading, activations, and KV cache. The Mac's 48 GB unified memory permitted the saved small inference runs, but exact peak memory on this checkpoint has not been measured. Neither saved lexical result computes official TOFU Truth Ratio, Forget Quality, or Model Utility.
 
-See [`tofu_baseline.md`](tofu_baseline.md) for the original configuration, [`baseline_findings.md`](baseline_findings.md) for the five-question audit, and [`paired_tofu_evaluation.md`](paired_tofu_evaluation.md) for the frozen manifest, official metric plan, and command to run the expanded diagnostic from a normal macOS Terminal.
+See [`tofu_baseline.md`](tofu_baseline.md) for the original configuration, [`baseline_findings.md`](baseline_findings.md) for the five-question audit, [`paired_tofu_evaluation.md`](paired_tofu_evaluation.md) for the frozen manifest and paired result, and [`graddiff_experiment_plan.md`](graddiff_experiment_plan.md) for the GradDiff plan and hardware recommendation.
 
 ## Recommended unlearning experiment after the baseline
 
-Run the expanded `forget01`/`retain99` pre-unlearning diagnostic from [`paired_tofu_evaluation.md`](paired_tofu_evaluation.md), then run the official TOFU evaluation for the same split pair before interpreting any GradDiff result. The official Forget Quality metric also needs a compatible retain99-only reference checkpoint or a separately retrained retain99 oracle and its evaluation logs. For a closest match to the published OpenUnlearning training setup, use a Linux cloud environment with two 48 GB NVIDIA GPUs and the upstream Python 3.11 environment. Explicitly override the upstream split defaults to `forget01`, `retain99`, and `holdout01`; do not compare a 01/99 baseline with a 10/90 unlearning run. The paired text diagnostics do not substitute for official Truth Ratio, Forget Quality, or Model Utility.
+Before a future GradDiff run, produce the official pre-unlearning TOFU evaluation for the same split pair and verify the retain99 reference logs. The official Forget Quality metric needs compatible retain99-only reference results. For the closest match to the published OpenUnlearning setup, use a Linux CUDA environment with two 48 GB NVIDIA GPUs and the upstream Python 3.11 environment. Explicitly override the upstream split defaults to `forget01`, `retain99`, and `holdout01`; do not compare a 01/99 run with a 10/90 result. The saved paired lexical diagnostics do not substitute for official Truth Ratio, Forget Quality, or Model Utility. See the [GradDiff plan](graddiff_experiment_plan.md) for detailed controls.
 
-```bash
-CUDA_VISIBLE_DEVICES=0,1 accelerate launch \
-  --config_file configs/accelerate/default_config.yaml \
-  src/train.py --config-name=unlearn.yaml \
-  experiment=unlearn/tofu/default trainer=GradDiff \
-  forget_split=forget01 retain_split=retain99 holdout_split=holdout01 \
-  retain_logs_path=saves/eval/tofu_Llama-3.2-1B-Instruct_retain99/TOFU_EVAL.json \
-  trainer.args.per_device_train_batch_size=4 \
-  trainer.args.gradient_accumulation_steps=4 \
-  trainer.args.gradient_checkpointing=true \
-  task_name=llama32_1b_tofu_forget01_graddiff
-```
+The detailed, unexecuted Hydra command, immutable model/data revisions,
+checkpoint schedule, and retained-utility guardrail are in the
+[GradDiff experiment plan](graddiff_experiment_plan.md).
 
-The model path in the default TOFU config already points to `open-unlearning/tofu_Llama-3.2-1B-Instruct_full`. The cloud run will still need to download that 2.47 GB checkpoint and the official evaluation logs (the framework documents `python setup_data.py --eval` for fetching these logs); the pinned TOFU QA files used by the paired diagnostic are already in the ignored local `.cache/tofu/` directory. A local MPS pilot can be considered later after adapting the CUDA-specific framework settings and separately measuring training memory. This assessment does not change the repository's stated GA objective or claim that any model has been unlearned.
+The model path in the default TOFU config already points to `open-unlearning/tofu_Llama-3.2-1B-Instruct_full`. A later cloud run will need that 2.47 GB checkpoint and verified official evaluation logs (the framework documents `python setup_data.py --eval` to fetch logs); the pinned TOFU QA files used by the paired diagnostic are already in the ignored local `.cache/tofu/` directory. An MPS pilot would need the adaptations and equivalence tests documented in the [GradDiff plan](graddiff_experiment_plan.md). No GradDiff run or unlearning is claimed here.
