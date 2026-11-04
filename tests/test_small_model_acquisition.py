@@ -533,6 +533,58 @@ class OrchestrationTests(unittest.TestCase):
             with self.subTest(kind=kind), self.assertRaises(ValueError):
                 a.validate_baseline(changed, self.manifest)
 
+    def test_baseline_lexical_metrics_do_not_certify_answer_quality(self):
+        _, report = self.baseline()
+        # A target string in a loop is recovery, not an exact answer or proof
+        # of factual understanding. Preserve this distinction in saved metrics.
+        alias = self.manifest["evaluation"][0]["target_aliases"][0]
+        row = report["evaluation"][0]
+        row.update(generation=f"Answer: {alias}\nAnswer: {alias}",
+                   generated_tokens=64, alias_recovery=True)
+        a.validate_baseline(report, self.manifest)
+        row["normalized_exact_match"] = True
+        with self.assertRaisesRegex(ValueError, "invalid baseline metric"):
+            a.validate_baseline(report, self.manifest)
+        row["normalized_exact_match"] = False
+        row.update(generation=f"prefix{alias}suffix", alias_recovery=False)
+        a.validate_baseline(report, self.manifest)
+        row["alias_recovery"] = True
+        with self.assertRaisesRegex(ValueError, "recovery metric mismatch"):
+            a.validate_baseline(report, self.manifest)
+
+    def test_utility_correct_content_can_fail_full_reference_exact_match(self):
+        _, report = self.baseline()
+        index = next(i for i, case in enumerate(self.manifest["evaluation"])
+                     if case["id"] == "utility:02")
+        row = report["evaluation"][index]
+        row.update(generation="Plants need light to grow.", generated_tokens=7)
+        a.validate_baseline(report, self.manifest)
+        self.assertFalse(row["normalized_exact_match"])
+        self.assertIsNone(row["alias_recovery"])
+        row["alias_recovery"] = False
+        with self.assertRaisesRegex(ValueError, "recovery metric mismatch"):
+            a.validate_baseline(report, self.manifest)
+
+    def test_saved_metrics_reject_invalid_values_and_reordered_coverage(self):
+        _, report = self.baseline()
+        for key, value in (("answer_nll", float("nan")), ("answer_nll", -1),
+                           ("answer_nll", True), ("generation", None),
+                           ("generated_tokens", -1), ("generated_tokens", 65),
+                           ("generated_tokens", True), ("normalized_exact_match", 0)):
+            changed = copy.deepcopy(report)
+            changed["evaluation"][0][key] = value
+            with self.subTest(key=key, value=value), self.assertRaises(ValueError):
+                a.validate_baseline(changed, self.manifest)
+        for kind in ("reorder", "duplicate"):
+            changed = copy.deepcopy(report)
+            rows = changed["evaluation"]
+            if kind == "reorder":
+                rows[0], rows[1] = rows[1], rows[0]
+            else:
+                rows[1] = copy.deepcopy(rows[0])
+            with self.subTest(kind=kind), self.assertRaisesRegex(ValueError, "every frozen evaluation case in order"):
+                a.validate_baseline(changed, self.manifest)
+
     def test_each_real_preload_gate_stops_before_model_load(self):
         # Exercise the actual monitor/dispatcher, without starting its thread.
         for fail_at in (0, 1):
@@ -726,7 +778,7 @@ class EvaluationTests(unittest.TestCase):
         case = {"id": "dev:00:0:paraphrase", "question": "q", "answer": "Target dkqqudhttrnz.",
                 "target_aliases": ["dkqqudhttrnz"]}
         example = SimpleNamespace(input_ids=(11, 22, 99, 100), assistant_target_start=2)
-        tokenizer = SimpleNamespace(eos_token_id=0, decode=lambda tokens, **kwargs: "dkqqudhttrnz")
+        tokenizer = SimpleNamespace(eos_token_id=0, decode=mock.Mock(return_value="dkqqudhttrnz"))
         monitor = SimpleNamespace(boundary=mock.Mock(), check=mock.Mock())
         loss = SimpleNamespace(item=lambda: 2.0, requires_grad=False,
                                backward=mock.Mock(side_effect=AssertionError("baseline called backward")))
@@ -744,7 +796,9 @@ class EvaluationTests(unittest.TestCase):
         self.assertEqual(tuple(prompts[0][0]), (11, 22))
         self.assertEqual(tuple(prompts[1][0]), (11, 22, 7))
         self.assertTrue(rows[0]["alias_recovery"])
+        self.assertFalse(rows[0]["normalized_exact_match"])
         self.assertEqual(rows[0]["generated_tokens"], 1)
+        tokenizer.decode.assert_called_once_with([7], skip_special_tokens=True)
 
         for training, requires_grad, grad, device in ((True, False, None, "mps"),
                                                      (False, True, None, "mps"),

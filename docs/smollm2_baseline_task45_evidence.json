@@ -1,0 +1,144 @@
+{
+  "task": 45,
+  "scope": "offline saved-artifact audit and tokenizer-only reconstruction; no checkpoint model constructed or weights loaded, no backward, real optimizer step, training or cloud execution",
+  "baseline": {
+    "path": "outputs/smollm2_acquisition_task38/baseline-002.json",
+    "sha256": "61e8b12765346538cb4508a3ba8fe67afc0a5a98f589640ef820ac71e26a83ff",
+    "size_bytes": 479156,
+    "mode_octal": "0o444",
+    "status": "baseline_complete_no_updates"
+  },
+  "original_validator": "PASS; artifact_path(new=False), frozen_manifest(), validate_baseline(report,manifest); local checkpoint bytes hashed, not loaded",
+  "model_id": "HuggingFaceTB/SmolLM2-135M",
+  "revision": "93efa2f097d58c2a74874c7e644dbc9b0cee75a2",
+  "checkpoint": {
+    "model_id": "HuggingFaceTB/SmolLM2-135M",
+    "revision": "93efa2f097d58c2a74874c7e644dbc9b0cee75a2",
+    "license": "Apache-2.0",
+    "weight_sha256": "80521b40281d6ce74e35c9282c22539e75aa0ac8578892b2a59955ef78d55da1",
+    "weight_bytes": 269060552,
+    "metadata_sha256": {
+      "config.json": "1d556eab73b69c7f11f64c557a2f9c6f440bd4c6b89bb2584a6b498c92603843",
+      "tokenizer_config.json": "4bb9af56a342753d39374f4016a16574cab299fe088e896f425ce3c433f61424",
+      "special_tokens_map.json": "e786b595b9a23148bf1630df78d9037a048ea671e48bfd3549a1e3c233742bb3",
+      "tokenizer.json": "9ca9acddb6525a194ec8ac7a87f24fbba7232a9a15ffa1af0c1224fcd888e47c",
+      "README.md": "d1ba68cae64a89b6b434b11526e6e2271ee5ffd2c914ec35ed515f9d84c6085c"
+    },
+    "local_files_only_loading": true
+  },
+  "runner_sha256": "92c3896e03d1599b007131fc255810fa32b5893a396b21203ef783004b8c01cd",
+  "manifest_file_sha256": "60e9872e86e8bd98b1a281866f686c7ff3ed41ca3c8b5709e5b4c4b1daa239de",
+  "source_files_sha256": {
+    "experiments/smollm2_135m_development_facts.json": "a1aa5af725724e738a9d0d47fde3011f8d063a6443041cffb25198aaa9032f76",
+    "experiments/smollm2_135m_utility_probes.json": "dd11adbbb2a489c7b111d31a31f35666dbd22c54af80430b3d13ed875426c350",
+    "experiments/smollm2_135m_tofu_manifest.json": "0ba5d80715dd9fb0c542d16f5167c23a0464da89a2f413d6a6bbd18235f2ea21"
+  },
+  "encoding": {
+    "sha256": "8f2f40dd285943b8fa4358c318ed8c99557845d0d35cbfcb6762142464d4a4f1",
+    "recomputed_tokenizer_only": true,
+    "cases": 108,
+    "max_qa_tokens": 57,
+    "max_prompt_plus_generation_budget": 93
+  },
+  "safeguards": {
+    "precision": "float32",
+    "actual_device": "mps",
+    "downloads_enabled": false,
+    "optimizer_created": false,
+    "optimizer_steps": 0,
+    "step_attempted": false,
+    "checkpoint_writes": 0,
+    "base_checkpoint_unchanged": true,
+    "training_authorized": false,
+    "seed": 2026,
+    "deterministic_algorithms": true,
+    "base_parameter_sha256": "709264bff244d021ac31b1fcf9e1733b9af31f75032e854e28db62287b8cd072",
+    "parameter_sha256_after": "709264bff244d021ac31b1fcf9e1733b9af31f75032e854e28db62287b8cd072",
+    "parameters_unchanged": true,
+    "parameter_versions_unchanged": true
+  },
+  "metrics": {
+    "direct": {
+      "count": 32,
+      "normalized_exact_matches": 0,
+      "alias_recoveries": 0,
+      "mean_answer_nll_including_eos": 2.546747148036957
+    },
+    "paraphrase": {
+      "count": 32,
+      "normalized_exact_matches": 0,
+      "alias_recoveries": 0,
+      "mean_answer_nll_including_eos": 3.052256502211094
+    },
+    "utility": {
+      "count": 12,
+      "normalized_exact_matches": 0,
+      "alias_recoveries": null,
+      "mean_answer_nll_including_eos": 2.09018874168396
+    }
+  },
+  "development_response_categories": {
+    "C_include_output": 16,
+    "object_name_lists": 16,
+    "repeated_emblem_statements": 16,
+    "repeated_Answer_labels": 12,
+    "echoed_Question_Answer_templates": 4
+  },
+  "generation_limit": {
+    "at_64_token_cap": 76,
+    "total": 76,
+    "interpretation": "budget exhausted; no generated EOS before cap; no token IDs or finish_reason saved; continuation beyond cap unknown"
+  },
+  "utility_manual_content_examples": [
+    "utility:02 contains plants need light",
+    "utility:05 contains pen or pencil",
+    "utility:11 contains question mark"
+  ],
+  "utility_manual_content_interpretation": "illustrative correct content despite failed full-reference exact match; not a rescored semantic accuracy estimate",
+  "memory": {
+    "guard_id": "smollm2_135m_fp32_mps_dev_baseline_v1",
+    "preload_available_required_bytes": 19327352832,
+    "before_load_available_bytes": 21394014208,
+    "min_available_bytes": 15957819392,
+    "pressure_levels": [
+      1
+    ],
+    "free_indicator_min": 88,
+    "swap_bytes_max": 0,
+    "pageouts_max": 0,
+    "peaks": {
+      "sample_count": 797,
+      "sample_interval_target_seconds": 0.25,
+      "max_sample_gap_ns_observed": 770297791,
+      "sampled_maxima_bytes": {
+        "process_current_rss_bytes": 2676031488,
+        "mps_tensor_allocated_bytes": 583687680,
+        "mps_driver_allocated_bytes": 2304868352
+      },
+      "os_process_lifetime_peak_rss_bytes_observed": 2676031488,
+      "native_mps_peak_bytes": null,
+      "mps_peak_method": "maximum of observed samples; lower bound on true peak; no native peak API in Torch 2.9.1",
+      "rss_and_mps_are_overlapping_do_not_sum": true
+    }
+  },
+  "historical_preservation": {
+    "ledger": "outputs/task39-admission-preservation-before.json",
+    "entries_verified": 81,
+    "mismatches": 0
+  },
+  "decision": "suitable only as the unchanged comparison for an explicitly authorized one-step mechanics pilot, conditional on fresh training admission; insufficient for scientific acquisition or retained-utility conclusions",
+  "next_experimental_action": "after explicit owner update authorization and fresh admission, run the existing single-SGD-step pilot on dev:09:0 at 1e-4 against the pinned baseline hash; no additional experiment in this audit",
+  "offline_tests": {
+    "command": "HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 TOKENIZERS_PARALLELISM=false .venv-ml/bin/python -B -m unittest discover -s tests -p 'test_small_model_acquisition.py' -v",
+    "passed": 40,
+    "new_tests": 3,
+    "strengthened_tests": 1,
+    "notes": "Model/update/save operations mocked in orchestration tests; existing CPU diagnostics instantiate tiny Linear layers, assign gradients and inspect an optimizer configuration, without backward or a real optimizer step."
+  },
+  "utility_response_categories": {
+    "echoed_Question_Answer_templates": 5,
+    "repeated_Answer_labels": 2,
+    "numeric_list": 1,
+    "repetitive_prose": 4
+  }
+}
