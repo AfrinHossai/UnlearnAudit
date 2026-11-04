@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "objective": "tiny_answer_only_full_parameter_gradient_difference_v1",
+  "frozen_manifest": "experiments/tiny_unlearning_task70_frozen.json",
+  "frozen_manifest_sha256": "c7312bbb9413d57896ed58e66551ed17a0001ee431fbaf15cc9555e0dc1a9634",
+  "seed": 2070,
+  "arms": [
+    "noop",
+    "retain_only",
+    "gradient_difference"
+  ],
+  "steps_per_update_arm": 20,
+  "total_optimizer_step_limit": 40,
+  "optimizer": {
+    "name": "SGD",
+    "lr": 0.05,
+    "momentum": 0.0,
+    "weight_decay": 0.0,
+    "dampening": 0.0,
+    "nesterov": false,
+    "foreach": false,
+    "fused": false,
+    "maximize": false,
+    "differentiable": false
+  },
+  "gamma": 1.0,
+  "alpha": 1.0,
+  "gradient_clip": 1.0,
+  "evaluation_steps": [
+    0,
+    5,
+    10,
+    15,
+    20
+  ],
+  "sentinels": [
+    "The sun rises in the east.",
+    "A small bird sits on a branch.",
+    "Two plus two equals four.",
+    "Water flows down the hill.",
+    "The red cup is on the table.",
+    "Please close the door.",
+    "Monday follows Sunday.",
+    "A quiet library has many books."
+  ],
+  "limits": {
+    "max_seconds": 600,
+    "projection_seconds": 480,
+    "max_gradient_norm_before_clip": 100.0,
+    "max_forget_byte_nll": 20.0,
+    "max_retain_byte_nll_increase": 0.5,
+    "max_sentinel_nll_increase": 0.5,
+    "max_sentinel_kl_nats": 0.5,
+    "minimum_disk_free_bytes": 4294967296
+  },
+  "acceptance": {
+    "forget_direct_recovered": 0,
+    "minimum_each_forget_byte_nll_increase": 1.0,
+    "maximum_each_forget_correct_over_wrong_margin": 0.0,
+    "retain_direct_recovered": 6,
+    "maximum_each_retain_byte_nll_increase": 0.1,
+    "maximum_sentinel_nll_increase": 0.1,
+    "maximum_sentinel_kl_nats": 0.1,
+    "noop_nll_tolerance": 1e-05,
+    "minimum_forget_nll_increase_beyond_retain_only": 0.5,
+    "paraphrase_effect": "not_identifiable_at_zero_baseline_recovery"
+  }
+}
