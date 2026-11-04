@@ -13,6 +13,13 @@ environment check alone. Later stages require explicit confirmation, reviewed
 development calibration and frozen key-fact annotations. Existing local
 experiments and memory guards remain unchanged.
 
+Task 36 recommends the [local Apple Silicon strategy](docs/local_mac_training_decision.md):
+**CONDITIONAL GO** for full-parameter SmolLM2 SGD with a small development pilot,
+pending admitted backward and training-memory validation. The failed backward
+attempt stopped before model load; its 20 GiB floor is conservative policy,
+not measured training demand. Local execution is preferred; no training is
+cleared and no guard is lowered by this assessment.
+
 ## Motivation
 
 Large language models can reproduce information associated with their training data. Machine unlearning aims to reduce a model's reliance on selected data after training, while preserving useful behavior on data that should remain. A low score on a standard question-answering prompt alone does not establish that the target information is no longer recoverable: answers may vary across prompts, and unlearning can also damage unrelated capabilities.
