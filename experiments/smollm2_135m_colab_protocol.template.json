@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "status": "DRAFT_BLOCKS_UPDATES",
+  "reviewed_by": null,
+  "review_notes": null,
+  "manifest_sha256": null,
+  "acquisition_learning_rate": null,
+  "unlearning_learning_rate": null,
+  "calibration_evidence_file": null,
+  "calibration_evidence_sha256": null,
+  "calibration_required_content": "completed development-only calibration, pinned model/development hashes, candidate rates, fixed budgets, all acquisition/unlearning gates, M_R and matched retain-only controls, selected lowest passing rates; no target TOFU scores",
+  "target_scores_used_for_rate_selection": false,
+  "aliases_by_case_id": {},
+  "alias_annotation_instructions": "All five nonsealed manifest sets plus utility:00 through utility:11; nonempty normalized literal answer substrings, independently reviewed before M0 outputs. Paraphrases annotate their own reference answer. Never auto-use the whole answer as a key fact.",
+  "refusal_phrases": ["i cannot answer", "i don't know", "i do not know"],
+  "repetition_ngram": 3,
+  "repetition_count": 3,
+  "limitations": "Frozen literal key-fact and phrase diagnostics require blinded semantic review; this template is not calibration evidence or authorization."
+}

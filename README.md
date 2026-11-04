@@ -5,6 +5,14 @@
 
 > **Research status:** No TOFU checkpoint has been fine-tuned or unlearned in this repository. The released TOFU-finetuned checkpoint has local five-question and paired 40/40 pre-unlearning diagnostics. Their JSON outputs remain ignored by Git; the paired artifact's audit metadata is recorded in the GradDiff plan. These are lightweight lexical diagnostics, not official TOFU Forget Quality or Model Utility evaluations. The new real-model runner has not loaded the Llama weights or performed an optimizer update.
 
+Task 35 adds a separate [staged Colab GPU notebook](notebooks/smollm2_135m_tofu_colab.ipynb)
+and [setup/recovery guide](docs/smollm2_colab_workflow.md) for SmolLM2-135M.
+It is prepared and tested offline only; no GPU session, weights download,
+training or unlearning was run. The first safe action is the notebook's initial
+environment check alone. Later stages require explicit confirmation, reviewed
+development calibration and frozen key-fact annotations. Existing local
+experiments and memory guards remain unchanged.
+
 ## Motivation
 
 Large language models can reproduce information associated with their training data. Machine unlearning aims to reduce a model's reliance on selected data after training, while preserving useful behavior on data that should remain. A low score on a standard question-answering prompt alone does not establish that the target information is no longer recoverable: answers may vary across prompts, and unlearning can also damage unrelated capabilities.

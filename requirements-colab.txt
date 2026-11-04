@@ -1,0 +1,9 @@
+# Separate Linux CUDA environment; never install the Mac lock into Colab.
+# Install torch==2.9.1 from https://download.pytorch.org/whl/cu126 first.
+transformers==4.57.1
+huggingface-hub==0.36.0
+tokenizers==0.22.1
+safetensors==0.6.2
+numpy==2.2.6
+psutil==7.0.0
+packaging==25.0
