@@ -6,6 +6,8 @@ Task 17 adds a separate [FP32 training-readiness preflight](graddiff_preflight.m
 
 ## Decision and experiment target
 
+**Near-term local decision, Task 18:** prepare the [separate full-parameter FP32 SGD pilot](../experiments/graddiff_low_memory_sgd_pilot.json), with zero momentum and checkpointing, before attempting AdamW training. See [the memory-options assessment](low_memory_unlearning_options.md) for estimates, scientific deviations, evaluation controls and go/no-go gates. This proposal preserves the GradDiff scalar and original trainable parameter domain but changes optimizer and schedule. It is not implemented or authorized for updates. Keep the canonical CUDA and earlier MPS profiles as historical specifications; the runner still hard-codes AdamW. A 32 GiB conservative available-memory gate and a separately authorized no-update backward rehearsal are proposed before any SGD update.
+
 The primary experiment is OpenUnlearning GradDiff on the TOFU 01/99 protocol using the TOFU-fine-tuned Llama 3.2 1B Instruct `full` checkpoint as the model to unlearn. Use the complete 40-record `forget01` training split and the 3,960-record `retain99` training split. Use the Linux CUDA profile in [the experiment specification](../experiments/graddiff_tofu_forget01_retain99.json) for the main result. The Apple MPS file is a prototype-only adaptation design.
 
 The method objective is

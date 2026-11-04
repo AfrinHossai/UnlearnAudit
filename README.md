@@ -62,6 +62,8 @@ The initial five-question result from [`src/evaluate_tofu_baseline.py`](src/eval
 
 ## Local GradDiff Prototype
 
+**Selected next step (Task 18):** prepare a separate FP32 full-parameter GradDiff pilot using SGD without momentum, gradient checkpointing and the existing cached TOFU model. Its estimated persistent state is 9.21 GiB and host planning envelope is 33.21–37.21 GiB; these are unmeasured budgets. The [options assessment](docs/low_memory_unlearning_options.md) compares mixed precision, SGD, checkpointing, LoRA and smaller models, and records the decision and evaluation controls. The [proposed pilot specification](experiments/graddiff_low_memory_sgd_pilot.json) is documentation only: the runner still uses AdamW. Optimizer implementation checks, physical preflight, a separately authorized no-update backward memory rehearsal, and explicit authorization must precede any real update. The proposed training gate requires 32 GiB available by the conservative measure; the historical 17.4 GiB reading fails it. No new training, model download or cloud execution occurred in this assessment.
+
 [`src/graddiff.py`](src/graddiff.py) implements the GradDiff scalar objective with mean causal next-token NLL computed separately for forget and retain batches. [`src/graddiff_train.py`](src/graddiff_train.py) provides an offline synthetic-only CLI. It selects MPS when available and CPU otherwise, records the selected device, rejects multi-process launch settings, and does not load a real model, checkpoint, or dataset.
 
 Run the synthetic dry run with PyTorch installed:
