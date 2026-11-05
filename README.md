@@ -1,4 +1,4 @@
-# UnlearnGuard: Privacy Leakage After Machine Unlearning
+# UnlearnAudit: Auditing Privacy Leakage After Machine Unlearning
 
 **Project:** `UnlearnGuard-Privacy-Leakage-Research`  
 **Status:** The five-question baseline and paired 40-forget/40-retain pre-unlearning diagnostic are saved and audited. The synthetic GradDiff objective has passed equation-level validation against a pinned OpenUnlearning source transcription. A guarded local real-model runner is implemented; no real-model optimizer step or official TOFU evaluation has been run.
